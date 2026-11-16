@@ -409,7 +409,7 @@ function enter(phase, at, dur) {
 function startRun() {
   ensureAudio();
   R = { phase: 'prep', set: 1, works: [], rests: [], vis: [], cd: {}, paused: false, start: 0, end: 0, beat: 0, nextBeat: 0, startedAt: Date.now() };
-  enter('prep', ac.currentTime + 0.15, prefs.prep);
+  enter('prep', ac.currentTime + 0.15, Math.max(prefs.prep, COUNT_IN * 60 / cur.bpm + 0.5));
   const run = $('#run'); run.className = 'overlay run t' + cur.track; run.hidden = false;
   $('#r-name').textContent = `${cur.track}：${cur.name}`;
   $('#r-beats').innerHTML = Array.from({ length: prefs.beats }, () => '<i></i>').join('');
@@ -417,38 +417,46 @@ function startRun() {
   clearInterval(timerId); timerId = setInterval(tick, 25);
   requestAnimationFrame(draw); keepAwake(true);
 }
+const COUNT_IN = 8; // 休憩・準備の終わりのカウント（2小節）
 function tick() {
   if (!R || R.paused || R.phase === 'done') return;
   const t = ac.currentTime, ahead = t + 0.15, iv = 60 / cur.bpm;
   if (R.phase === 'work') {
     while (R.nextBeat < ahead && R.nextBeat < R.end - 0.005) {
       const i = R.beat % prefs.beats;
-      if (R.nextBeat >= t - 0.02 && prefs.click) click(R.nextBeat, i === 0 && prefs.accent);
+      const pre = R.beat === 0 && R.preAt === R.start; // 1拍目は切り替わる前に予約済み
+      if (!pre && R.nextBeat >= t - 0.02 && prefs.click) click(R.nextBeat, i === 0 && prefs.accent);
       R.vis.push({ t: R.nextBeat, i, acc: i === 0 });
       R.nextBeat += iv; R.beat++;
     }
   } else {
-    // 休憩・準備の終わりに、テンポで1小節のカウント
-    const n = prefs.beats;
-    for (let k = 0; k < n; k++) {
-      const bt = R.end - (n - k) * iv;
+    // 休憩・準備の終わりに、テンポで2小節のカウント
+    for (let k = 0; k < COUNT_IN; k++) {
+      const bt = R.end - (COUNT_IN - k) * iv;
       if (!R.cd[k] && bt < ahead && bt >= R.start - 0.001) {
-        if (bt >= t - 0.02) countClick(bt, k === 0);
-        R.vis.push({ t: bt, i: k, acc: k === 0 }); R.cd[k] = 1;
+        if (bt >= t - 0.02) countClick(bt, k % 4 === 0);
+        R.vis.push({ t: bt, i: k % prefs.beats, acc: k % 4 === 0 }); R.cd[k] = 1;
       }
     }
+  }
+  // 次がワークなら、その1拍目を切り替わる前に予約する（遅れて鳴らなくなるのを防ぐ）
+  const nextIsWork = R.phase !== 'work' || (cur.rest === 0 && R.set < cur.sets);
+  if (nextIsWork && R.preAt !== R.end && R.end < ahead) {
+    if (prefs.click) click(R.end, prefs.accent); else cue('go', R.end);
+    R.preAt = R.end;
   }
   if (t >= R.end) advance(R.end);
 }
 function advance(at) {
-  if (R.phase === 'prep') { if (!prefs.click) cue('go', at); enter('work', at, cur.work); }
+  const go = () => { if (!prefs.click && R.preAt !== at) cue('go', at); };
+  if (R.phase === 'prep') { go(); enter('work', at, cur.work); }
   else if (R.phase === 'work') {
     R.works.push(at - R.start);
     if (R.set >= cur.sets) { finish(at); return; }
     if (cur.rest > 0) { cue('rest', at); enter('rest', at, cur.rest); }
-    else { R.set++; if (!prefs.click) cue('go', at); enter('work', at, cur.work); }
+    else { R.set++; go(); enter('work', at, cur.work); }
   } else if (R.phase === 'rest') {
-    R.rests.push(at - R.start); R.set++; if (!prefs.click) cue('go', at); enter('work', at, cur.work);
+    R.rests.push(at - R.start); R.set++; go(); enter('work', at, cur.work);
   }
   updateRunButtons();
 }
@@ -467,7 +475,7 @@ function closeRun() {
   render();
 }
 const PH = {
-  prep: ['準備', 'ペダルに足を乗せて。カウントのあとスタート'],
+  prep: ['準備', 'ペダルに足を乗せて。カウント2小節のあとスタート'],
   work: ['ワーク', '崩れたら止めてOK。リセットして再開'],
   rest: ['リセット中', '脱力して呼吸。次のセットをクリーンに'],
   done: ['おつかれさま', '記録を作っています…'],
