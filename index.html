@@ -214,16 +214,20 @@ table.bench tr[data-act]{cursor:pointer}
 'use strict';
 /* ========== 基本データ ========== */
 const TRACKS = {
-  A: { sub: '持久', goal: '♩140で失敗なく連続ダブル' },
-  B: { sub: '瞬発', goal: '♩160〜200・押し付け系のダブル' },
+  A: { sub: '持久', goal: '目標：♩140で3分×5をきれいに' },
+  B: { sub: '瞬発', goal: '目標：押し込む系を♩180で30秒×8をきれいに' },
 };
 const DEFAULT_PRESETS = [
-  { id: 'a1', track: 'A', name: '土台',       bpm: 120, work: 180,  rest: 60, sets: 5 },
-  { id: 'a2', track: 'A', name: 'クラスター', bpm: 138, work: 30,   rest: 50, sets: 10 },
-  { id: 'a3', track: 'A', name: '長距離',     bpm: 110, work: 1500, rest: 0,  sets: 1 },
-  { id: 'b1', track: 'B', name: '型作り',     bpm: 110, work: 180,  rest: 60, sets: 3 },
-  { id: 'b2', track: 'B', name: 'バースト',   bpm: 160, work: 15,   rest: 60, sets: 8 },
+  { id: 'a1', track: 'A', name: '本番',   bpm: 128, work: 180,  rest: 60, sets: 5 },
+  { id: 'a2', track: 'A', name: '上乗せ', bpm: 150, work: 30,   rest: 30, sets: 10 },
+  { id: 'a3', track: 'A', name: '長距離', bpm: 110, work: 1500, rest: 0,  sets: 1 },
+  { id: 'b2', track: 'B', name: '本番',   bpm: 184, work: 30,   rest: 30, sets: 8 },
+  { id: 'b3', track: 'B', name: '上乗せ', bpm: 188, work: 8,    rest: 60, sets: 5 },
+  { id: 'b1', track: 'B', name: '型作り', bpm: 160, work: 90,   rest: 60, sets: 3 },
 ];
+// 役割名：本番＝目標テンポで長さを伸ばす／上乗せ＝目標より速く短く／型作り・長距離＝基礎
+const ROLE_ORDER = ['本番', '上乗せ', '型作り', '長距離'];
+const roleIdx = n => { const i = ROLE_ORDER.indexOf(n); return i < 0 ? 99 : i; };
 const CONDS = ['◎ 好調', '○ 普通', '△ いまいち', '× 不調'];
 const BPM_MIN = 80, BPM_MAX = 210;
 
@@ -322,7 +326,7 @@ const presetSummary = p => `♩${p.bpm}　${fmtL(p.work)}${p.rest ? '/' + fmtL(p
 
 function renderPractice() {
   if (!cur || cur.track !== prefs.track) initCur();
-  const t = cur.track, list = presets.filter(p => p.track === t), dirty = isDirty();
+  const t = cur.track, list = presets.filter(p => p.track === t).sort((a, b) => roleIdx(a.name) - roleIdx(b.name)), dirty = isDirty();
   const stepper = (label, name, k, val) => `<div class="stepper"><span class="k">${label}</span>
       <button data-act="st" data-k="${k}" data-v="-1" aria-label="${name}を減らす">−</button><span class="v">${val}</span>
       <button data-act="st" data-k="${k}" data-v="1" aria-label="${name}を増やす">＋</button></div>`;
@@ -895,6 +899,14 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && !R.paused) keepAwake(true);
 });
 
+// 2026-11 呼び名を役割名にそろえる（数値はそのまま。記録の名前も合わせる）
+if ((prefs.migV || 1) < 2) {
+  const RENAME = { A: { '土台': '本番', 'クラスター': '上乗せ' }, B: { 'バースト': '本番' } };
+  presets.forEach(p => { const n = (RENAME[p.track] || {})[p.name]; if (n) p.name = n; });
+  logs.forEach(l => { const n = (RENAME[l.track] || {})[l.preset]; if (n) l.preset = n; });
+  if (!presets.some(p => p.track === 'B' && p.name === '上乗せ')) presets.push({ ...DEFAULT_PRESETS.find(p => p.id === 'b3'), id: presets.some(p => p.id === 'b3') ? uid() : 'b3' });
+  prefs.migV = 2; save('presets', presets); save('logs', logs); savePrefs();
+}
 sortLogs(); initCur(); go('home');
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
