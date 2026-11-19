@@ -16,7 +16,7 @@
 :root{
   --bg:#0c0e11;--s1:#161a20;--s2:#1f242c;--s3:#2b323c;
   --tx:#f3f5f7;--mu:#9aa4b1;--line:#2b323c;
-  --a:#ff8a3d;--b:#38c6f4;--ok:#58d68d;--warn:#ffd24a;--bad:#ff6363;
+  --a:#ff8a3d;--b:#38c6f4;--c:#b48cff;--ok:#58d68d;--warn:#ffd24a;--bad:#ff6363;
   color-scheme:dark;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -39,7 +39,7 @@ h3{font-size:16px;margin:22px 0 10px;color:var(--mu);font-weight:600;letter-spac
 .mu{color:var(--mu)}
 .small{font-size:13px}
 .card{background:var(--s1);border-radius:16px;padding:16px;margin:12px 0}
-.tA{--tc:var(--a)} .tB{--tc:var(--b)}
+.tA{--tc:var(--a)} .tB{--tc:var(--b)} .tC{--tc:var(--c)}
 
 /* tabs */
 #tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:rgba(18,21,26,.96);border-top:1px solid var(--line);
@@ -216,7 +216,9 @@ table.bench tr[data-act]{cursor:pointer}
 const TRACKS = {
   A: { sub: '持久', goal: '目標：♩140で3分×5をきれいに' },
   B: { sub: '瞬発', goal: '目標：押し込む系を♩180で30秒×8をきれいに' },
+  C: { sub: 'ジェント', goal: '目標：Ichika Nito「Rain」のキックを♩100で' },
 };
+const TRACK_KEYS = Object.keys(TRACKS);
 const DEFAULT_PRESETS = [
   { id: 'a1', track: 'A', name: '本番',   bpm: 128, work: 180,  rest: 60, sets: 5 },
   { id: 'a2', track: 'A', name: '上乗せ', bpm: 150, work: 30,   rest: 30, sets: 10 },
@@ -224,12 +226,15 @@ const DEFAULT_PRESETS = [
   { id: 'b2', track: 'B', name: '本番',   bpm: 184, work: 30,   rest: 30, sets: 8 },
   { id: 'b3', track: 'B', name: '上乗せ', bpm: 188, work: 8,    rest: 60, sets: 5 },
   { id: 'b1', track: 'B', name: '型作り', bpm: 160, work: 90,   rest: 60, sets: 3 },
+  { id: 'c1', track: 'C', name: '本番',   bpm: 64,  work: 120,  rest: 60, sets: 5 },
+  { id: 'c2', track: 'C', name: '上乗せ', bpm: 72,  work: 30,   rest: 30, sets: 6 },
+  { id: 'c3', track: 'C', name: '型作り', bpm: 56,  work: 180,  rest: 60, sets: 3 },
 ];
 // 役割名：本番＝目標テンポで長さを伸ばす／上乗せ＝目標より速く短く／型作り・長距離＝基礎
 const ROLE_ORDER = ['本番', '上乗せ', '型作り', '長距離'];
 const roleIdx = n => { const i = ROLE_ORDER.indexOf(n); return i < 0 ? 99 : i; };
 const CONDS = ['◎ 好調', '○ 普通', '△ いまいち', '× 不調'];
-const BPM_MIN = 80, BPM_MAX = 210;
+const BPM_MIN = 40, BPM_MAX = 210;
 
 /* ========== 保存 ========== */
 const KEY = 'kick.';
@@ -238,7 +243,7 @@ function save(k, v) { try { localStorage.setItem(KEY + k, JSON.stringify(v)); } 
 let presets = load('presets', null) || DEFAULT_PRESETS.map(p => ({ ...p }));
 let logs = load('logs', []);
 let bench = load('bench', []);
-let prefs = Object.assign({ track: 'A', click: true, accent: true, beats: 4, prep: 5, vol: 0.9, presetA: 'a1', presetB: 'b1' }, load('prefs', {}));
+let prefs = Object.assign({ track: 'A', click: true, accent: true, beats: 4, prep: 5, vol: 0.9, presetA: 'a1', presetB: 'b1', presetC: 'c1' }, load('prefs', {}));
 const savePresets = () => save('presets', presets);
 const saveLogs = () => { sortLogs(); save('logs', logs); };
 const saveBench = () => { bench.sort((a, b) => b.date.localeCompare(a.date)); save('bench', bench); };
@@ -299,7 +304,7 @@ function renderHome() {
       <div><span class="mu small">今日</span><b>${tl.length}回</b><span class="mu small">ワーク ${fmtL(sum(tl, 'total'))}</span></div>
       <div><span class="mu small">今週</span><b>${wl.length}回</b><span class="mu small">ワーク ${fmtL(sum(wl, 'total'))}</span></div>
     </div>
-    ${card('A')}${card('B')}
+    ${TRACK_KEYS.map(card).join('')}
     ${benchDone ? '' : `<button class="notice" data-act="benchnew">今月のベンチマークがまだです（月1回）　→ 記録する</button>`}`;
 }
 
@@ -332,7 +337,7 @@ function renderPractice() {
       <button data-act="st" data-k="${k}" data-v="1" aria-label="${name}を増やす">＋</button></div>`;
   $('#scr-practice').className = 'scr t' + t;
   $('#scr-practice').innerHTML = `
-    <div class="seg">${['A', 'B'].map(x => `<button class="t${x} ${x === t ? 'on' : ''}" data-act="track" data-v="${x}">${x}：${TRACKS[x].sub}</button>`).join('')}</div>
+    <div class="seg">${TRACK_KEYS.map(x => `<button class="t${x} ${x === t ? 'on' : ''}" data-act="track" data-v="${x}">${x}：${TRACKS[x].sub}</button>`).join('')}</div>
     <div class="label">プリセット</div>
     <div class="chips">${list.map(p => `<button class="chip ${p.id === cur.id ? 'on' : ''}" data-act="preset" data-v="${p.id}">${esc(p.name)}<small>${presetSummary(p)}</small></button>`).join('')}
       <button class="chip add" data-act="newpreset">＋ 追加</button></div>
@@ -542,7 +547,7 @@ function openLogForm(L, isNew) {
     <h2>${isNew ? (L.works ? '練習の記録（下書き）' : '記録を手で追加') : '記録を編集'}</h2>
     <label>日付<input type="date" name="date" value="${L.date}"></label>
     <div class="label">トラック</div>
-    <div class="seg sm">${['A', 'B'].map(x => `<button class="t${x} ${x === L.track ? 'on' : ''}" data-act="lf-track" data-v="${x}">${x}：${TRACKS[x].sub}</button>`).join('')}</div>
+    <div class="seg sm">${TRACK_KEYS.map(x => `<button class="t${x} ${x === L.track ? 'on' : ''}" data-act="lf-track" data-v="${x}">${x}：${TRACKS[x].sub}</button>`).join('')}</div>
     <label>メニュー<input name="preset" value="${esc(L.preset)}" maxlength="20"></label>
     <div class="grid2">
       <label>テンポ ♩<input type="number" inputmode="numeric" name="bpm" value="${L.bpm}"></label>
@@ -573,7 +578,7 @@ function renderHistory() {
   const stat = (name, ls) => {
     const days = new Set(ls.map(l => l.date)).size;
     return `<div class="stat"><div class="p">${name}</div><b>${ls.length}回</b> <span class="mu small">${days}日</span>
-      <div class="d">ワーク ${fmtL(sum(ls, 'total'))}　A ${ls.filter(l => l.track === 'A').length}・B ${ls.filter(l => l.track === 'B').length}</div></div>`;
+      <div class="d">ワーク ${fmtL(sum(ls, 'total'))}　${TRACK_KEYS.map(k => k + ' ' + ls.filter(l => l.track === k).length).join('・')}</div></div>`;
   };
 
   // 伸び（メニューごと）
@@ -628,7 +633,7 @@ function renderHistory() {
 
     <h3>伸び（メニューごと）</h3>
     <div class="card t${H.track}">
-      <div class="seg sm">${['A', 'B'].map(x => `<button class="t${x} ${x === H.track ? 'on' : ''}" data-act="htrack" data-v="${x}">${x}：${TRACKS[x].sub}</button>`).join('')}</div>
+      <div class="seg sm">${TRACK_KEYS.map(x => `<button class="t${x} ${x === H.track ? 'on' : ''}" data-act="htrack" data-v="${x}">${x}：${TRACKS[x].sub}</button>`).join('')}</div>
       ${names.length > 1 ? `<div class="chips" style="margin-top:10px">${names.map(n => `<button class="chip ${n === H.preset ? 'on' : ''}" data-act="hpreset" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}
       <div style="margin-top:10px">${prog}</div>
     </div>
@@ -637,7 +642,7 @@ function renderHistory() {
     <div class="card">${benchHTML}<div class="btnrow"><button data-act="benchnew">＋ 計測を記録</button></div></div>
 
     <h3>履歴</h3>
-    <div class="seg sm">${[['all', 'すべて'], ['A', 'A：持久'], ['B', 'B：瞬発']].map(([v, n]) => `<button class="${v === 'all' ? '' : 't' + v} ${v === H.filter ? 'on' : ''}" ${v === 'all' ? 'style="--tc:var(--tx)"' : ''} data-act="hfilter" data-v="${v}">${n}</button>`).join('')}</div>
+    <div class="seg sm">${[['all', 'すべて'], ...TRACK_KEYS.map(k => [k, k + '：' + TRACKS[k].sub])].map(([v, n]) => `<button class="${v === 'all' ? '' : 't' + v} ${v === H.filter ? 'on' : ''}" ${v === 'all' ? 'style="--tc:var(--tx)"' : ''} data-act="hfilter" data-v="${v}">${n}</button>`).join('')}</div>
     <div class="btnrow"><button data-act="manual">＋ 手で記録を追加</button></div>
     ${listHTML}
 
@@ -829,7 +834,7 @@ const ACT = {
   },
   manual() {
     initCur();
-    openLogForm({ id: uid(), ts: Date.now(), date: ymd(new Date()), track: H.filter === 'B' ? 'B' : (H.filter === 'A' ? 'A' : cur.track), preset: cur.name, bpm: cur.bpm,
+    openLogForm({ id: uid(), ts: Date.now(), date: ymd(new Date()), track: TRACKS[H.filter] ? H.filter : cur.track, preset: cur.name, bpm: cur.bpm,
       setsPlanned: null, sets: cur.sets, work: cur.work, rest: cur.rest, works: null, rests: null, total: cur.work * cur.sets, maxWork: cur.work, avgRest: cur.rest, cond: '', memo: '' }, true);
   },
   closesheet() { closeSheet(); },
@@ -906,6 +911,11 @@ if ((prefs.migV || 1) < 2) {
   logs.forEach(l => { const n = (RENAME[l.track] || {})[l.preset]; if (n) l.preset = n; });
   if (!presets.some(p => p.track === 'B' && p.name === '上乗せ')) presets.push({ ...DEFAULT_PRESETS.find(p => p.id === 'b3'), id: presets.some(p => p.id === 'b3') ? uid() : 'b3' });
   prefs.migV = 2; save('presets', presets); save('logs', logs); savePrefs();
+}
+// 2026-11 トラックC（ジェント）を追加
+if (prefs.migV < 3) {
+  if (!presets.some(p => p.track === 'C')) DEFAULT_PRESETS.filter(p => p.track === 'C').forEach(p => presets.push({ ...p }));
+  prefs.migV = 3; save('presets', presets); savePrefs();
 }
 sortLogs(); initCur(); go('home');
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
