@@ -84,7 +84,9 @@ h3{font-size:16px;margin:22px 0 10px;color:var(--mu);font-weight:600;letter-spac
 .steps4 button,.stepper button{background:var(--s3);border-radius:12px;font-size:22px;font-weight:700;padding:12px 0}
 .stepper{display:grid;grid-template-columns:minmax(52px,1fr) 64px minmax(90px,120px) 64px;align-items:center;gap:8px;margin-top:12px}
 .stepper .k{color:var(--mu);font-size:15px;white-space:nowrap;line-height:1.2}
-.stepper .v{text-align:center;font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.stepper .v{text-align:center;font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
+.stepper .v small{display:block;font-size:12px;color:var(--mu);font-weight:400}
+.stepper .unit{font-size:12px;padding:3px 8px;margin-top:4px;border-radius:8px;font-weight:600;color:var(--tc,var(--a))}
 .total{margin-top:14px;color:var(--mu);font-size:14px;text-align:center}
 .toggles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .tg{background:var(--s2);border-radius:12px;padding:12px;font-size:15px;text-align:left}
@@ -216,7 +218,7 @@ table.bench tr[data-act]{cursor:pointer}
 const TRACKS = {
   A: { sub: '持久', goal: '目標：♩140で3分×5をきれいに' },
   B: { sub: '瞬発', goal: '目標：押し込む系を♩180で30秒×8をきれいに' },
-  C: { sub: 'ジェント', goal: '目標：Ichika Nito「Rain」のキックを♩100で' },
+  C: { sub: 'ジェント', goal: '目標：「Rain」のキック（32分）を♩100で4小節きれいに' },
 };
 const TRACK_KEYS = Object.keys(TRACKS);
 const DEFAULT_PRESETS = [
@@ -226,7 +228,7 @@ const DEFAULT_PRESETS = [
   { id: 'b2', track: 'B', name: '本番',   bpm: 184, work: 30,   rest: 30, sets: 8 },
   { id: 'b3', track: 'B', name: '上乗せ', bpm: 188, work: 8,    rest: 60, sets: 5 },
   { id: 'b1', track: 'B', name: '型作り', bpm: 160, work: 90,   rest: 60, sets: 3 },
-  { id: 'c1', track: 'C', name: '本番',   bpm: 64,  work: 120,  rest: 60, sets: 5 },
+  { id: 'c1', track: 'C', name: '本番',   bpm: 64,  work: 15,   rest: 40, sets: 8, bars: 4 },
   { id: 'c2', track: 'C', name: '上乗せ', bpm: 72,  work: 30,   rest: 30, sets: 6 },
   { id: 'c3', track: 'C', name: '型作り', bpm: 56,  work: 180,  rest: 60, sets: 3 },
 ];
@@ -319,15 +321,17 @@ function selectPreset(id) {
   const p = presets.find(x => x.id === id); if (!p) return;
   cur = { ...p }; prefs['preset' + p.track] = id; savePrefs();
 }
-const isDirty = () => { const b = presets.find(p => p.id === cur.id); return !b || ['name', 'bpm', 'work', 'rest', 'sets'].some(k => b[k] !== cur[k]); };
-const totalTime = p => p.work * p.sets + p.rest * Math.max(0, p.sets - 1);
+const isDirty = () => { const b = presets.find(p => p.id === cur.id); return !b || ['name', 'bpm', 'work', 'rest', 'sets'].some(k => b[k] !== cur[k]) || (b.bars || 0) !== (cur.bars || 0); };
+// ワークの長さ（秒）。小節で決めている時は4/4拍子として計算
+const workSec = p => p.bars ? p.bars * 4 * 60 / p.bpm : p.work;
+const totalTime = p => workSec(p) * p.sets + p.rest * Math.max(0, p.sets - 1);
 function stepTime(v, dir, min, max) {
   const ref = dir > 0 ? v : v - 1;
   const st = ref < 60 ? 5 : ref < 300 ? 15 : 60;
   const n = dir > 0 ? Math.floor(v / st) * st + st : Math.ceil(v / st) * st - st;
   return clamp(n, min, max);
 }
-const presetSummary = p => `♩${p.bpm}　${fmtL(p.work)}${p.rest ? '/' + fmtL(p.rest) : '（休憩なし）'}×${p.sets}`;
+const presetSummary = p => `♩${p.bpm}　${p.bars ? p.bars + '小節' : fmtL(p.work)}${p.rest ? '/' + fmtL(p.rest) : '（休憩なし）'}×${p.sets}`;
 
 function renderPractice() {
   if (!cur || cur.track !== prefs.track) initCur();
@@ -348,10 +352,10 @@ function renderPractice() {
         <button data-act="bpm" data-v="-4">−4</button><button data-act="bpm" data-v="-1">−1</button>
         <button data-act="bpm" data-v="1">＋1</button><button data-act="bpm" data-v="4">＋4</button></div>
       <input type="range" id="bpmr" min="${BPM_MIN}" max="${BPM_MAX}" value="${cur.bpm}" aria-label="テンポ">
-      ${stepper('ワーク', 'ワーク', 'work', fmt(cur.work))}
+      ${stepper('ワーク<br><button class="unit" data-act="unit">' + (cur.bars ? '秒にする' : '小節にする') + '</button>', 'ワーク', 'work', cur.bars ? `${cur.bars}小節<small>${workSec(cur).toFixed(1)}秒</small>` : fmt(cur.work))}
       ${stepper('休憩<br><span class="small mu">リセット</span>', '休憩', 'rest', cur.rest ? fmt(cur.rest) : 'なし')}
       ${stepper('セット', 'セット数', 'sets', cur.sets)}
-      <div class="total">全体 約${fmtL(totalTime(cur))}（ワーク合計 ${fmtL(cur.work * cur.sets)}）</div>
+      <div class="total">全体 約${fmtL(totalTime(cur))}（ワーク合計 ${fmtL(workSec(cur) * cur.sets)}）</div>
     </div>
     <button class="start" data-act="start">スタート</button>
     <div class="card toggles">
@@ -458,14 +462,14 @@ function tick() {
 }
 function advance(at) {
   const go = () => { if (!prefs.click && R.preAt !== at) cue('go', at); };
-  if (R.phase === 'prep') { go(); enter('work', at, cur.work); }
+  if (R.phase === 'prep') { go(); enter('work', at, workSec(cur)); }
   else if (R.phase === 'work') {
     R.works.push(at - R.start);
     if (R.set >= cur.sets) { finish(at); return; }
     if (cur.rest > 0) { cue('rest', at); enter('rest', at, cur.rest); }
-    else { R.set++; go(); enter('work', at, cur.work); }
+    else { R.set++; go(); enter('work', at, workSec(cur)); }
   } else if (R.phase === 'rest') {
-    R.rests.push(at - R.start); R.set++; go(); enter('work', at, cur.work);
+    R.rests.push(at - R.start); R.set++; go(); enter('work', at, workSec(cur));
   }
   updateRunButtons();
 }
@@ -529,7 +533,7 @@ function openDraft() {
   const works = R.works.map(w => Math.round(w)), rests = R.rests.map(r => Math.round(r));
   const L = {
     id: uid(), ts: Date.now(), date: ymd(new Date()), track: cur.track, preset: cur.name, bpm: cur.bpm,
-    setsPlanned: cur.sets, sets: works.length, work: cur.work, rest: cur.rest,
+    setsPlanned: cur.sets, sets: works.length, work: Math.round(workSec(cur)), bars: cur.bars || null, rest: cur.rest,
     works, rests, total: sum(works), maxWork: Math.max(...works), avgRest: rests.length ? Math.round(avg(rests)) : cur.rest,
     cond: '', memo: '',
   };
@@ -621,7 +625,7 @@ function renderHistory() {
   const shown = H.more ? fl : fl.slice(0, 30);
   const listHTML = shown.length ? shown.map(l => `<button class="logitem t${l.track}" data-act="logedit" data-v="${l.id}">
       <div class="li-top"><span class="badge">${l.track}</span><b>${esc(l.preset)}</b><span>♩${l.bpm}</span><span class="li-date">${md(l.date)}</span></div>
-      <div class="li-sub">${l.sets}${l.setsPlanned && l.setsPlanned !== l.sets ? '/' + l.setsPlanned : ''}セット × ${fmtL(l.work)}・休憩 ${l.rest ? fmtL(l.rest) : 'なし'}・最長 ${fmtL(l.maxWork)}・計 ${fmtL(l.total)}${l.cond ? '・' + l.cond : ''}</div>
+      <div class="li-sub">${l.sets}${l.setsPlanned && l.setsPlanned !== l.sets ? '/' + l.setsPlanned : ''}セット × ${l.bars ? l.bars + '小節（' + fmtL(l.work) + '）' : fmtL(l.work)}・休憩 ${l.rest ? fmtL(l.rest) : 'なし'}・最長 ${fmtL(l.maxWork)}・計 ${fmtL(l.total)}${l.cond ? '・' + l.cond : ''}</div>
       ${l.memo ? `<div class="li-memo">${esc(l.memo)}</div>` : ''}</button>`).join('')
     + (fl.length > shown.length ? `<button class="link" data-act="more">さらに表示（残り${fl.length - shown.length}件）</button>` : '')
     : '<div class="empty">まだ記録がありません</div>';
@@ -736,30 +740,35 @@ const ACT = {
   st(v, b) {
     const k = b.dataset.k, d = int(v);
     if (k === 'sets') cur.sets = clamp(cur.sets + d, 1, 50);
-    if (k === 'work') cur.work = stepTime(cur.work, d, 5, 3600);
+    if (k === 'work') { if (cur.bars) cur.bars = clamp(cur.bars + d, 1, 64); else cur.work = stepTime(cur.work, d, 5, 3600); }
     if (k === 'rest') cur.rest = stepTime(cur.rest, d, 0, 900);
     renderPractice();
   },
   toggle(v) { prefs[v] = !prefs[v]; savePrefs(); renderPractice(); },
+  unit() {
+    if (cur.bars) { cur.work = clamp(Math.round(workSec(cur) / 5) * 5, 5, 3600); cur.bars = 0; }
+    else cur.bars = clamp(Math.round(cur.work * cur.bpm / 240), 1, 64);
+    renderPractice();
+  },
   cycle(v) {
     const opts = v === 'beats' ? [2, 3, 4, 8] : [3, 5, 10, 15];
     prefs[v] = opts[(opts.indexOf(prefs[v]) + 1) % opts.length]; savePrefs(); renderPractice();
   },
   savepreset() {
     const b = presets.find(p => p.id === cur.id); if (!b) return;
-    Object.assign(b, { name: cur.name, bpm: cur.bpm, work: cur.work, rest: cur.rest, sets: cur.sets });
+    Object.assign(b, { name: cur.name, bpm: cur.bpm, work: cur.work, rest: cur.rest, sets: cur.sets, bars: cur.bars || 0 });
     savePresets(); renderPractice(); toast('プリセットを上書きしました');
   },
   saveas() {
     const name = prompt('新しいプリセットの名前', cur.name + (presets.some(p => p.id === cur.id && p.name === cur.name) ? '（2）' : ''));
     if (name == null || !name.trim()) return;
-    const p = { id: uid(), track: cur.track, name: name.trim().slice(0, 20), bpm: cur.bpm, work: cur.work, rest: cur.rest, sets: cur.sets };
+    const p = { id: uid(), track: cur.track, name: name.trim().slice(0, 20), bpm: cur.bpm, work: cur.work, rest: cur.rest, sets: cur.sets, bars: cur.bars || 0 };
     presets.push(p); savePresets(); selectPreset(p.id); renderPractice(); toast('プリセットを追加しました');
   },
   newpreset() {
     const name = prompt('新しいプリセットの名前', '新しいメニュー');
     if (name == null || !name.trim()) return;
-    const p = { id: uid(), track: cur.track, name: name.trim().slice(0, 20), bpm: cur.bpm, work: cur.work, rest: cur.rest, sets: cur.sets };
+    const p = { id: uid(), track: cur.track, name: name.trim().slice(0, 20), bpm: cur.bpm, work: cur.work, rest: cur.rest, sets: cur.sets, bars: cur.bars || 0 };
     presets.push(p); savePresets(); selectPreset(p.id); renderPractice(); toast('追加しました。数値を変えて「上書き保存」');
   },
   delpreset() {
@@ -813,6 +822,7 @@ const ACT = {
     L.sets = clamp(int(f.sets, 0), 0, 99);
     L.work = int(f.work_m) * 60 + int(f.work_s);
     L.rest = int(f.rest_m) * 60 + int(f.rest_s);
+    if (L.work !== o.work) L.bars = null;
     if (L.sets !== o.sets || L.work !== o.work || !L.works || !L.works.length) {
       if (L.works && L.works.length) L.works = null;
       L.total = L.sets * L.work; L.maxWork = L.work;
@@ -916,6 +926,11 @@ if ((prefs.migV || 1) < 2) {
 if (prefs.migV < 3) {
   if (!presets.some(p => p.track === 'C')) DEFAULT_PRESETS.filter(p => p.track === 'C').forEach(p => presets.push({ ...p }));
   prefs.migV = 3; save('presets', presets); savePrefs();
+}
+// 2026-11 Cの本番を「4小節×8」に（テンポはそのまま）
+if (prefs.migV < 4) {
+  presets.filter(p => p.track === 'C' && p.name === '本番').forEach(p => Object.assign(p, { bars: 4, rest: 40, sets: 8 }));
+  prefs.migV = 4; save('presets', presets); savePrefs();
 }
 sortLogs(); initCur(); go('home');
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
