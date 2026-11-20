@@ -6,12 +6,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="キック練">
+<meta name="apple-mobile-web-app-title" content="Clean Reps">
 <meta name="theme-color" content="#0c0e11">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-180.png">
-<title>キック・ダブル練習</title>
+<title>Clean Reps</title>
 <style>
 :root{
   --bg:#0c0e11;--s1:#161a20;--s2:#1f242c;--s3:#2b323c;
@@ -300,7 +300,7 @@ function renderHome() {
       <div class="tc-go">練習する →</div></button>`;
   };
   $('#scr-home').innerHTML = `
-    <h1>キック・ダブル練習</h1>
+    <h1>Clean Reps</h1>
     <div class="mu">${now.getMonth() + 1}月${now.getDate()}日(${WD[now.getDay()]})　崩れたら止めて、リセットして再開。</div>
     <div class="today">
       <div><span class="mu small">今日</span><b>${tl.length}回</b><span class="mu small">ワーク ${fmtL(sum(tl, 'total'))}</span></div>
@@ -875,11 +875,11 @@ const ACT = {
   },
 
   // 書き出し
-  csv() { shareFile(`kick-log-${ymd(new Date())}.csv`, '﻿' + buildCSV(), 'text/csv'); },
+  csv() { shareFile(`clean-reps-log-${ymd(new Date())}.csv`, '﻿' + buildCSV(), 'text/csv'); },
   async copytext() {
     try { await navigator.clipboard.writeText(buildText()); toast('コピーしました'); } catch (e) { toast('コピーできませんでした'); }
   },
-  backup() { shareFile(`kick-backup-${ymd(new Date())}.json`, JSON.stringify({ app: 'kick-double', version: 1, presets, logs, bench, prefs }, null, 1), 'application/json'); },
+  backup() { shareFile(`clean-reps-backup-${ymd(new Date())}.json`, JSON.stringify({ app: 'kick-double', version: 1, presets, logs, bench, prefs }, null, 1), 'application/json'); },
   restore() { $('#importfile').value = ''; $('#importfile').click(); },
 };
 $('#importfile').addEventListener('change', async e => {
