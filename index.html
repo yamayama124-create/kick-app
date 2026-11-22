@@ -216,24 +216,24 @@ table.bench tr[data-act]{cursor:pointer}
 'use strict';
 /* ========== 基本データ ========== */
 const TRACKS = {
-  A: { sub: '持久', goal: '目標：♩140で3分×5をきれいに' },
+  A: { sub: '確実', goal: '目標：♩130前後のダブルを確実に' },
   B: { sub: '瞬発', goal: '目標：押し込む系を♩180で30秒×8をきれいに' },
   C: { sub: 'ジェント', goal: '目標：「Rain」のキック（32分）を♩100で4小節きれいに' },
 };
 const TRACK_KEYS = Object.keys(TRACKS);
 const DEFAULT_PRESETS = [
-  { id: 'a1', track: 'A', name: '本番',   bpm: 128, work: 180,  rest: 60, sets: 5 },
-  { id: 'a2', track: 'A', name: '上乗せ', bpm: 150, work: 30,   rest: 30, sets: 10 },
-  { id: 'a3', track: 'A', name: '長距離', bpm: 110, work: 1500, rest: 0,  sets: 1 },
-  { id: 'b2', track: 'B', name: '本番',   bpm: 184, work: 30,   rest: 30, sets: 8 },
-  { id: 'b3', track: 'B', name: '上乗せ', bpm: 188, work: 8,    rest: 60, sets: 5 },
-  { id: 'b1', track: 'B', name: '型作り', bpm: 160, work: 90,   rest: 60, sets: 3 },
-  { id: 'c1', track: 'C', name: '本番',   bpm: 64,  work: 15,   rest: 40, sets: 8, bars: 4 },
-  { id: 'c2', track: 'C', name: '上乗せ', bpm: 72,  work: 30,   rest: 30, sets: 6 },
-  { id: 'c3', track: 'C', name: '型作り', bpm: 56,  work: 180,  rest: 60, sets: 3 },
+  { id: 'a0', track: 'A', name: 'ゆっくり', bpm: 110, work: 180, rest: 60, sets: 3 },
+  { id: 'a1', track: 'A', name: '目標',     bpm: 128, work: 180, rest: 60, sets: 3 },
+  { id: 'a2', track: 'A', name: '速め',     bpm: 150, work: 30,  rest: 30, sets: 10 },
+  { id: 'b1', track: 'B', name: 'ゆっくり', bpm: 160, work: 90,  rest: 60, sets: 3 },
+  { id: 'b2', track: 'B', name: '目標',     bpm: 188, work: 30,  rest: 30, sets: 8 },
+  { id: 'b3', track: 'B', name: '速め',     bpm: 200, work: 30,  rest: 30, sets: 5 },
+  { id: 'c3', track: 'C', name: 'ゆっくり', bpm: 72,  work: 180, rest: 60, sets: 3 },
+  { id: 'c1', track: 'C', name: '目標',     bpm: 85,  work: 15,  rest: 15, sets: 8,  bars: 4 },
+  { id: 'c2', track: 'C', name: '速め',     bpm: 96,  work: 15,  rest: 15, sets: 10, bars: 4 },
 ];
-// 役割名：本番＝目標テンポで長さを伸ばす／上乗せ＝目標より速く短く／型作り・長距離＝基礎
-const ROLE_ORDER = ['本番', '上乗せ', '型作り', '長距離'];
+// 呼び名：ゆっくり＝遅めで形を固める／目標＝目標テンポで長さを伸ばす／速め＝目標より速く短く。この順に練習する
+const ROLE_ORDER = ['ゆっくり', '目標', '速め'];
 const roleIdx = n => { const i = ROLE_ORDER.indexOf(n); return i < 0 ? 99 : i; };
 const CONDS = ['◎ 好調', '○ 普通', '△ いまいち', '× 不調'];
 const BPM_MIN = 40, BPM_MAX = 210;
@@ -242,6 +242,7 @@ const BPM_MIN = 40, BPM_MAX = 210;
 const KEY = 'kick.';
 function load(k, d) { try { const v = localStorage.getItem(KEY + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
 function save(k, v) { try { localStorage.setItem(KEY + k, JSON.stringify(v)); } catch (e) { toast('保存できませんでした'); } }
+const freshInstall = load('presets', null) == null;
 let presets = load('presets', null) || DEFAULT_PRESETS.map(p => ({ ...p }));
 let logs = load('logs', []);
 let bench = load('bench', []);
@@ -832,9 +833,16 @@ const ACT = {
     const i = logs.findIndex(x => x.id === L.id);
     if (i >= 0) logs[i] = L; else logs.push(L);
     saveLogs(); closeSheet();
+    const fromRun = !!R;
     if (R) { R = null; clearInterval(timerId); $('#run').hidden = true; }
     H.track = L.track; H.preset = L.preset;
-    go('history'); toast('記録しました');
+    if (fromRun) {
+      // 練習画面に戻り、次のプリセット（ゆっくり→目標→速め）を選んでおく
+      const list = presets.filter(p => p.track === cur.track).sort((a, b) => roleIdx(a.name) - roleIdx(b.name));
+      const i = list.findIndex(p => p.id === cur.id);
+      if (i >= 0 && i < list.length - 1) selectPreset(list[i + 1].id);
+      go('practice'); toast('記録しました');
+    } else { go('history'); toast('記録しました'); }
   },
   logdiscard() { if (!confirm('この練習を記録せずに閉じますか？')) return; closeSheet(); closeRun(); },
   logedit(v) { const L = logs.find(x => x.id === v); if (L) openLogForm(L, false); },
@@ -914,6 +922,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && !R.paused) keepAwake(true);
 });
 
+if (freshInstall) prefs.migV = 5;
 // 2026-11 呼び名を役割名にそろえる（数値はそのまま。記録の名前も合わせる）
 if ((prefs.migV || 1) < 2) {
   const RENAME = { A: { '土台': '本番', 'クラスター': '上乗せ' }, B: { 'バースト': '本番' } };
@@ -932,7 +941,15 @@ if (prefs.migV < 4) {
   presets.filter(p => p.track === 'C' && p.name === '本番').forEach(p => Object.assign(p, { bars: 4, rest: 40, sets: 8 }));
   prefs.migV = 4; save('presets', presets); savePrefs();
 }
-sortLogs(); initCur(); go('home');
+// 2026-11 呼び名を「ゆっくり・目標・速め」に。長距離は外す（記録は残す）
+if (prefs.migV < 5) {
+  const RN = { '型作り': 'ゆっくり', '形作り': 'ゆっくり', '本番': '目標', '上乗せ': '速め' };
+  presets = presets.filter(p => !(p.track === 'A' && p.name === '長距離'));
+  presets.forEach(p => { if (RN[p.name]) p.name = RN[p.name]; });
+  logs.forEach(l => { if (RN[l.preset]) l.preset = RN[l.preset]; });
+  prefs.migV = 5; save('presets', presets); save('logs', logs); savePrefs();
+}
+sortLogs(); initCur(); go('practice');
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
