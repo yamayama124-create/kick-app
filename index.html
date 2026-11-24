@@ -223,17 +223,17 @@ const TRACKS = {
 const TRACK_KEYS = Object.keys(TRACKS);
 const DEFAULT_PRESETS = [
   { id: 'a0', track: 'A', name: 'ゆっくり', bpm: 110, work: 180, rest: 60, sets: 3 },
-  { id: 'a1', track: 'A', name: '目標',     bpm: 128, work: 180, rest: 60, sets: 3 },
+  { id: 'a1', track: 'A', name: 'ターゲット', bpm: 128, work: 180, rest: 60, sets: 3 },
   { id: 'a2', track: 'A', name: '速め',     bpm: 150, work: 30,  rest: 30, sets: 10 },
   { id: 'b1', track: 'B', name: 'ゆっくり', bpm: 160, work: 90,  rest: 60, sets: 3 },
-  { id: 'b2', track: 'B', name: '目標',     bpm: 188, work: 30,  rest: 30, sets: 8 },
+  { id: 'b2', track: 'B', name: 'ターゲット', bpm: 188, work: 30,  rest: 30, sets: 8 },
   { id: 'b3', track: 'B', name: '速め',     bpm: 200, work: 30,  rest: 30, sets: 5 },
   { id: 'c3', track: 'C', name: 'ゆっくり', bpm: 72,  work: 180, rest: 60, sets: 3 },
-  { id: 'c1', track: 'C', name: '目標',     bpm: 85,  work: 15,  rest: 15, sets: 8,  bars: 4 },
+  { id: 'c1', track: 'C', name: 'ターゲット', bpm: 85,  work: 15,  rest: 15, sets: 8,  bars: 4 },
   { id: 'c2', track: 'C', name: '速め',     bpm: 96,  work: 15,  rest: 15, sets: 10, bars: 4 },
 ];
-// 呼び名：ゆっくり＝遅めで形を固める／目標＝目標テンポで長さを伸ばす／速め＝目標より速く短く。この順に練習する
-const ROLE_ORDER = ['ゆっくり', '目標', '速め'];
+// 呼び名：ゆっくり＝遅めで形を固める／ターゲット＝目標テンポで長さを伸ばす／速め＝目標より速く短く。この順に練習する
+const ROLE_ORDER = ['ゆっくり', 'ターゲット', '速め'];
 const roleIdx = n => { const i = ROLE_ORDER.indexOf(n); return i < 0 ? 99 : i; };
 const CONDS = ['◎ 好調', '○ 普通', '△ いまいち', '× 不調'];
 const BPM_MIN = 40, BPM_MAX = 210;
@@ -246,7 +246,7 @@ const freshInstall = load('presets', null) == null;
 let presets = load('presets', null) || DEFAULT_PRESETS.map(p => ({ ...p }));
 let logs = load('logs', []);
 let bench = load('bench', []);
-let prefs = Object.assign({ track: 'A', click: true, accent: true, beats: 4, prep: 5, vol: 0.9, presetA: 'a1', presetB: 'b1', presetC: 'c1' }, load('prefs', {}));
+let prefs = Object.assign({ track: 'A', click: true, accent: true, beats: 4, prep: 5, vol: 0.9, presetA: 'a1', presetB: 'b1', presetC: 'c1', drop: 4 }, load('prefs', {}));
 const savePresets = () => save('presets', presets);
 const saveLogs = () => { sortLogs(); save('logs', logs); };
 const saveBench = () => { bench.sort((a, b) => b.date.localeCompare(a.date)); save('bench', bench); };
@@ -364,6 +364,7 @@ function renderPractice() {
       <button class="tg ${prefs.accent ? 'on' : ''}" data-act="toggle" data-v="accent">拍の頭にアクセント<b>${prefs.accent ? 'ON' : 'OFF'}</b></button>
       <button class="tg" data-act="cycle" data-v="beats">アクセントの間隔<b>${prefs.beats}拍ごと</b></button>
       <button class="tg" data-act="cycle" data-v="prep">スタート前の準備<b>${prefs.prep}秒</b></button>
+      <button class="tg" data-act="cycle" data-v="drop">崩れた後の1セット<b>${prefs.drop ? '♩−' + prefs.drop + 'で立て直し' : '下げない'}</b></button>
       <label class="volrow">音量<input type="range" id="vol" min="0.1" max="1" step="0.05" value="${prefs.vol}"></label>
     </div>
     <div class="btnrow">
@@ -422,7 +423,7 @@ function enter(phase, at, dur) {
 }
 function startRun() {
   ensureAudio();
-  R = { phase: 'prep', set: 1, works: [], rests: [], vis: [], cd: {}, paused: false, start: 0, end: 0, beat: 0, nextBeat: 0, startedAt: Date.now() };
+  R = { phase: 'prep', set: 1, works: [], rests: [], vis: [], cd: {}, paused: false, start: 0, end: 0, beat: 0, nextBeat: 0, startedAt: Date.now(), base: cur.bpm, down: false, downs: 0, failed: false };
   enter('prep', ac.currentTime + 0.15, Math.max(prefs.prep, COUNT_IN * 60 / cur.bpm + 0.5));
   const run = $('#run'); run.className = 'overlay run t' + cur.track; run.hidden = false;
   $('#r-name').textContent = `${cur.track}：${cur.name}`;
@@ -467,6 +468,7 @@ function advance(at) {
   else if (R.phase === 'work') {
     R.works.push(at - R.start);
     if (R.set >= cur.sets) { finish(at); return; }
+    setDown(R.failed); R.failed = false;
     if (cur.rest > 0) { cue('rest', at); enter('rest', at, cur.rest); }
     else { R.set++; go(); enter('work', at, workSec(cur)); }
   } else if (R.phase === 'rest') {
@@ -474,8 +476,14 @@ function advance(at) {
   }
   updateRunButtons();
 }
+// 崩れたら次の1セットだけテンポを下げ、きれいに打てたら元に戻す（チャレンジポイント）
+function setDown(d) {
+  R.down = !!(d && prefs.drop);
+  if (R.down) R.downs++;
+  cur.bpm = R.down ? clamp(R.base - prefs.drop, BPM_MIN, BPM_MAX) : R.base;
+}
 function finish(at) {
-  cancelFrom(at); R.vis = [];
+  cancelFrom(at); R.vis = []; cur.bpm = R.base; R.down = false;
   cue('done', at + 0.05);
   R.phase = 'done'; R.start = R.end = at;
   clearInterval(timerId); keepAwake(false); updateRunButtons();
@@ -483,6 +491,7 @@ function finish(at) {
 }
 function closeRun() {
   if (ac) cancelFrom(0);
+  if (R) cur.bpm = R.base;
   R = null; clearInterval(timerId); keepAwake(false);
   $('#run').hidden = true;
   if (ac && ac.state === 'suspended') ac.resume();
@@ -501,7 +510,7 @@ function updateRunButtons() {
   const sk = $('#r-skip'); sk.hidden = !skip; sk.textContent = skip || '';
   const pb = $('#r-pause'); pb.hidden = R.phase === 'done';
   pb.textContent = R.paused ? '再開' : '一時停止'; pb.classList.toggle('paused', R.paused);
-  $('#r-bpm').textContent = '♩' + cur.bpm;
+  $('#r-bpm').textContent = '♩' + cur.bpm + (R.down ? '（一段下げ）' : '');
 }
 let lastUI = {};
 function setUI(id, prop, val) { if (lastUI[id + prop] !== val) { lastUI[id + prop] = val; const e = document.getElementById(id); if (prop === 'text') e.textContent = val; else if (prop === 'w') e.style.width = val; } }
@@ -515,7 +524,8 @@ function draw() {
   run.classList.toggle('flash', t - R.flashAt >= 0 && t - R.flashAt < 0.18 && R.phase !== 'done');
   const [label, sub] = PH[R.phase];
   setUI('r-phase', 'text', R.paused ? '一時停止中' : label);
-  setUI('r-sub', 'text', R.paused ? '「再開」で続きから' : sub);
+  const downSub = R.phase === 'work' ? `一段下げて立て直し。次は♩${R.base}に戻る` : `次のセットは♩${cur.bpm}で立て直し`;
+  setUI('r-sub', 'text', R.paused ? '「再開」で続きから' : (R.down && (R.phase === 'work' || R.phase === 'rest') ? downSub : sub));
   setUI('r-set', 'text', `セット ${Math.min(R.set, cur.sets)} / ${cur.sets}`);
   const rem = Math.max(0, R.end - t), dur = R.end - R.start;
   setUI('r-time', 'text', R.phase === 'done' ? fmt(sum(R.works)) : fmt(Math.ceil(rem - 0.001)));
@@ -536,7 +546,7 @@ function openDraft() {
     id: uid(), ts: Date.now(), date: ymd(new Date()), track: cur.track, preset: cur.name, bpm: cur.bpm,
     setsPlanned: cur.sets, sets: works.length, work: Math.round(workSec(cur)), bars: cur.bars || null, rest: cur.rest,
     works, rests, total: sum(works), maxWork: Math.max(...works), avgRest: rests.length ? Math.round(avg(rests)) : cur.rest,
-    cond: '', memo: '',
+    drops: R.downs || 0, cond: '', memo: '',
   };
   openLogForm(L, true);
 }
@@ -547,7 +557,7 @@ function timeIn(name, sec) {
 function openLogForm(L, isNew) {
   editing = { L: { ...L }, isNew, orig: { sets: L.sets, work: L.work, rest: L.rest } };
   const d = L.works && L.works.length ? `<div class="detail">各セットのワーク：<b>${L.works.map(w => w + '秒').join(' / ')}</b><br>
-      最長 <b>${fmtL(L.maxWork)}</b>　合計 <b>${fmtL(L.total)}</b>${L.rests && L.rests.length ? `　平均休憩 <b>${fmtL(L.avgRest)}</b>` : ''}</div>` : '';
+      最長 <b>${fmtL(L.maxWork)}</b>　合計 <b>${fmtL(L.total)}</b>${L.rests && L.rests.length ? `　平均休憩 <b>${fmtL(L.avgRest)}</b>` : ''}${L.drops ? `<br>一段下げて立て直したセット：<b>${L.drops}回</b>` : ''}</div>` : '';
   showSheet(`<div class="t${L.track}" id="lf">
     <h2>${isNew ? (L.works ? '練習の記録（下書き）' : '記録を手で追加') : '記録を編集'}</h2>
     <label>日付<input type="date" name="date" value="${L.date}"></label>
@@ -752,7 +762,7 @@ const ACT = {
     renderPractice();
   },
   cycle(v) {
-    const opts = v === 'beats' ? [2, 3, 4, 8] : [3, 5, 10, 15];
+    const opts = v === 'beats' ? [2, 3, 4, 8] : v === 'drop' ? [4, 8, 0] : [3, 5, 10, 15];
     prefs[v] = opts[(opts.indexOf(prefs[v]) + 1) % opts.length]; savePrefs(); renderPractice();
   },
   savepreset() {
@@ -793,13 +803,14 @@ const ACT = {
   skip() {
     if (!R || R.paused || R.phase === 'done') return;
     const t = ac.currentTime; cancelFrom(t); R.vis = R.vis.filter(v => v.t <= t);
+    if (R.phase === 'work') R.failed = true;
     advance(t + 0.05);
   },
-  rbpm(v) { cur.bpm = clamp(cur.bpm + int(v), BPM_MIN, BPM_MAX); updateRunButtons(); },
+  rbpm(v) { R.base = clamp(R.base + int(v), BPM_MIN, BPM_MAX); cur.bpm = R.down ? clamp(R.base - prefs.drop, BPM_MIN, BPM_MAX) : R.base; updateRunButtons(); },
   async restart() {
     if (!R) return;
     if (!confirm('最初からやり直しますか？（今回の分は記録しません）')) return;
-    cancelFrom(0); if (ac.state !== 'running') await ac.resume(); startRun();
+    cancelFrom(0); cur.bpm = R.base; if (ac.state !== 'running') await ac.resume(); startRun();
   },
   async finish() {
     if (!R) return;
@@ -837,7 +848,7 @@ const ACT = {
     if (R) { R = null; clearInterval(timerId); $('#run').hidden = true; }
     H.track = L.track; H.preset = L.preset;
     if (fromRun) {
-      // 練習画面に戻り、次のプリセット（ゆっくり→目標→速め）を選んでおく
+      // 練習画面に戻り、次のプリセット（ゆっくり→ターゲット→速め）を選んでおく
       const list = presets.filter(p => p.track === cur.track).sort((a, b) => roleIdx(a.name) - roleIdx(b.name));
       const i = list.findIndex(p => p.id === cur.id);
       if (i >= 0 && i < list.length - 1) selectPreset(list[i + 1].id);
@@ -922,7 +933,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && !R.paused) keepAwake(true);
 });
 
-if (freshInstall) prefs.migV = 5;
+if (freshInstall) prefs.migV = 6;
 // 2026-11 呼び名を役割名にそろえる（数値はそのまま。記録の名前も合わせる）
 if ((prefs.migV || 1) < 2) {
   const RENAME = { A: { '土台': '本番', 'クラスター': '上乗せ' }, B: { 'バースト': '本番' } };
@@ -948,6 +959,12 @@ if (prefs.migV < 5) {
   presets.forEach(p => { if (RN[p.name]) p.name = RN[p.name]; });
   logs.forEach(l => { if (RN[l.preset]) l.preset = RN[l.preset]; });
   prefs.migV = 5; save('presets', presets); save('logs', logs); savePrefs();
+}
+// 2026-11 「目標」を「ターゲット」に
+if (prefs.migV < 6) {
+  presets.forEach(p => { if (p.name === '目標') p.name = 'ターゲット'; });
+  logs.forEach(l => { if (l.preset === '目標') l.preset = 'ターゲット'; });
+  prefs.migV = 6; save('presets', presets); save('logs', logs); savePrefs();
 }
 sortLogs(); initCur(); go('practice');
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
