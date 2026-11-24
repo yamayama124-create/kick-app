@@ -125,6 +125,7 @@ h3{font-size:16px;margin:22px 0 10px;color:var(--mu);font-weight:600;letter-spac
 .r-bpm{display:flex;align-items:center;justify-content:center;gap:16px;margin:10px 0 12px}
 .r-bpm b{font-size:26px;min-width:110px;text-align:center}
 .r-bpm button{background:var(--s2);border-radius:12px;padding:10px 18px;font-size:18px;font-weight:700}
+.r-down{width:100%;background:var(--s2);border-radius:14px;padding:12px 0;font-size:16px;font-weight:700;margin-bottom:10px;color:var(--ok)}
 .r-skip{width:100%;background:var(--s2);border-radius:16px;padding:16px 0;font-size:19px;font-weight:700;margin-bottom:10px}
 .r-pause{width:100%;background:var(--tx);color:#111;border-radius:20px;padding:24px 0;font-size:28px;font-weight:800}
 .r-pause.paused{background:var(--ok)}
@@ -206,6 +207,7 @@ table.bench tr[data-act]{cursor:pointer}
     <div class="r-beats" id="r-beats"></div>
   </div>
   <div class="r-bpm"><button data-act="rbpm" data-v="-4">−4</button><b id="r-bpm"></b><button data-act="rbpm" data-v="4">＋4</button></div>
+  <button id="r-down" class="r-down" data-act="rdown" hidden></button>
   <button id="r-skip" class="r-skip" data-act="skip"></button>
   <button id="r-pause" class="r-pause" data-act="pause">一時停止</button>
   <div class="r-row"><button data-act="restart">最初から</button><button data-act="finish">終了して記録</button></div>
@@ -485,10 +487,11 @@ function advance(at) {
   updateRunButtons();
 }
 // 崩れたら次の1セットだけテンポを下げ、きれいに打てたら元に戻す（チャレンジポイント）
+const downBpm = () => clamp(R.base - (prefs.drop || 4), BPM_MIN, BPM_MAX);
 function setDown(d) {
   R.down = !!(d && prefs.drop);
   if (R.down) R.downs++;
-  cur.bpm = R.down ? clamp(R.base - prefs.drop, BPM_MIN, BPM_MAX) : R.base;
+  cur.bpm = R.down ? downBpm() : R.base;
 }
 function finish(at) {
   cancelFrom(at); R.vis = []; cur.bpm = R.base; R.down = false;
@@ -519,6 +522,8 @@ function updateRunButtons() {
   const pb = $('#r-pause'); pb.hidden = R.phase === 'done';
   pb.textContent = R.paused ? '再開' : '一時停止'; pb.classList.toggle('paused', R.paused);
   $('#r-bpm').textContent = '♩' + cur.bpm + (R.down ? '（一段下げ）' : '');
+  const dn = $('#r-down'); dn.hidden = R.phase !== 'rest';
+  dn.textContent = R.down ? `次のセットを元の♩${R.base}に戻す` : `次のセットを一段下げる（♩${downBpm()}）`;
 }
 let lastUI = {};
 function setUI(id, prop, val) { if (lastUI[id + prop] !== val) { lastUI[id + prop] = val; const e = document.getElementById(id); if (prop === 'text') e.textContent = val; else if (prop === 'w') e.style.width = val; } }
@@ -847,7 +852,14 @@ const ACT = {
     if (R.phase === 'work') R.failed = true;
     advance(t + 0.05);
   },
-  rbpm(v) { R.base = clamp(R.base + int(v), BPM_MIN, BPM_MAX); cur.bpm = R.down ? clamp(R.base - prefs.drop, BPM_MIN, BPM_MAX) : R.base; updateRunButtons(); },
+  rbpm(v) { R.base = clamp(R.base + int(v), BPM_MIN, BPM_MAX); cur.bpm = R.down ? downBpm() : R.base; updateRunButtons(); },
+  // 休憩中に、次のセットだけ自分で一段下げる（もう一度押すと元に戻す）
+  rdown() {
+    if (!R || R.phase !== 'rest') return;
+    if (R.down) { R.down = false; R.downs = Math.max(0, R.downs - 1); cur.bpm = R.base; }
+    else { R.down = true; R.downs++; cur.bpm = downBpm(); }
+    updateRunButtons();
+  },
   async restart() {
     if (!R) return;
     if (!confirm('最初からやり直しますか？（今回の分は記録しません）')) return;
