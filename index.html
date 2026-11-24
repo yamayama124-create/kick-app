@@ -170,6 +170,10 @@ table.bench tr[data-act]{cursor:pointer}
 .day{background:var(--s1);border-radius:14px;padding:10px 14px;margin:8px 0}
 .day-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .dl{font-size:14px;margin-top:5px}
+.guide p,.guide li{font-size:15px;line-height:1.7}
+.guide h3{color:var(--tx);margin:16px 0 6px;font-size:16px;letter-spacing:0}
+.guide ul,.guide ol{padding-left:1.3em;margin:6px 0}
+.guide b{color:var(--warn);font-weight:700}
 .logitem{display:block;width:100%;text-align:left;background:var(--s1);border-radius:14px;padding:12px 14px;margin:8px 0;border-left:4px solid var(--tc)}
 .li-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .li-top b{font-size:17px}
@@ -188,12 +192,14 @@ table.bench tr[data-act]{cursor:pointer}
   <section id="scr-home" class="scr"></section>
   <section id="scr-practice" class="scr" hidden></section>
   <section id="scr-history" class="scr" hidden></section>
+  <section id="scr-guide" class="scr" hidden></section>
 </main>
 
 <nav id="tabs">
   <button data-go="home" class="on"><span class="ic">⌂</span>ホーム</button>
   <button data-go="practice"><span class="ic">◉</span>練習</button>
   <button data-go="history"><span class="ic">≡</span>記録</button>
+  <button data-go="guide"><span class="ic">?</span>考え方</button>
 </nav>
 
 <div id="run" class="overlay run" hidden>
@@ -285,7 +291,7 @@ function go(s) {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.go === s));
   render(); window.scrollTo(0, 0);
 }
-function render() { if (screen === 'home') renderHome(); else if (screen === 'practice') renderPractice(); else renderHistory(); }
+function render() { if (screen === 'home') renderHome(); else if (screen === 'practice') renderPractice(); else if (screen === 'guide') renderGuide(); else renderHistory(); }
 
 /* ========== ホーム ========== */
 function renderHome() {
@@ -608,6 +614,73 @@ function openLogForm(L, isNew) {
 }
 function formVals() {
   const o = {}; $('#sheet').querySelectorAll('input[name],textarea[name]').forEach(e => o[e.name] = e.value); return o;
+}
+
+// 練習の考え方（設計書）。公開を見すえて、楽器やトラックに依存しない書き方にしている
+function renderGuide() {
+  $('#scr-guide').innerHTML = `
+    <h1>考え方</h1>
+    <div class="mu">Clean Reps は「きれいな反復」を積み上げるための練習タイマーです。</div>
+    <div class="card guide">
+      <h2>いちばん大事なこと</h2>
+      <p><b>崩れたまま打ち続けない。</b>崩れる前に止めて、短く休んで（リセット）、きれいな反復だけを積み上げます。崩れた動きを何度も繰り返すと、崩れた動きのほうが体に残るからです。休憩は「サボり」ではなく、練習の一部です。</p>
+    </div>
+    <div class="card guide">
+      <h2>3つのメニュー</h2>
+      <p>どのトラックも「ゆっくり → ターゲット → チャレンジ」の3つで組みます。役割が違うので、時間の取り方も変えます。</p>
+      <h3>ゆっくり ── 形を覚える</h3>
+      <ul>
+        <li>目標と<b>同じ動き方のまま</b>打てる、一番遅いテンポにします。遅すぎると別の動きの練習になります。</li>
+        <li>長めに打ちますが、<b>1分×3のように短く区切る</b>と、集中が切れずに正確な形のまま打てます。</li>
+        <li>ねらいは「確実にできる」こと。</li>
+      </ul>
+      <h3>ターゲット ── 本番の尺で確実に</h3>
+      <ul>
+        <li>目標のテンポで、<b>実際の曲の長さ（小節数）</b>で打ちます。ワークは「小節にする」で小節数で決められます。</li>
+        <li>全セットきれいに打てた日が<b>2回続いたら＋4</b>。テンポか長さのどちらか1つだけ上げます。</li>
+      </ul>
+      <h3>チャレンジ ── 一瞬でもできる瞬間を作る</h3>
+      <ul>
+        <li>ターゲットより速いテンポ（＋8前後）で打ちます。<b>全部できなくていい</b>。一瞬・一部でもできればOK。</li>
+        <li>ワークは長めにとって、その中で何度もやり直します。</li>
+        <li>休憩は<b>長め（30秒くらい）</b>に。疲れた状態では「一瞬できる」最高の動きが出にくいからです。</li>
+        <li>ねらいは、ターゲットを楽にすること。</li>
+      </ul>
+    </div>
+    <div class="card guide">
+      <h2>練習の順番</h2>
+      <ol>
+        <li>ゆっくり</li>
+        <li>ターゲット</li>
+        <li>チャレンジ</li>
+        <li>最後にターゲットを1セット。チャレンジの後で<b>楽に感じるか</b>を体で確かめます。</li>
+      </ol>
+      <p>記録は終わると自動で保存され、次のメニューが選ばれた状態で練習画面に戻ります。新しい難しい動きは、<b>疲れていない練習の最初</b>にやると効果的です。</p>
+    </div>
+    <div class="card guide">
+      <h2>崩れたとき（チャレンジポイント）</h2>
+      <p>練習は「うまくいくことが多めで、ときどき失敗する」くらいの難しさのときに一番伸びる、という考え方があります。失敗が続く難しさでも、簡単すぎても伸びません。</p>
+      <ul>
+        <li>崩れたら「崩れた → リセットへ」。次の1セットだけテンポが自動で一段下がり、きれいに打てたら元に戻ります。</li>
+        <li>休憩中の「次のセットを一段下げる」で、自分で下げることもできます。</li>
+        <li>下げる幅は練習画面の「崩れた後の1セット」で変えられます。</li>
+      </ul>
+    </div>
+    <div class="card guide">
+      <h2>意識の向け方</h2>
+      <p>体の動き（「足首をこう動かす」）ではなく、<b>動きの結果</b>に意識を向けます。クリックと音がぴったり重なっているか、狙った場所に当たっているか。このほうが上達が早く、本番でも崩れにくいことが繰り返し示されています。</p>
+    </div>
+    <div class="card guide">
+      <h2>難しいフレーズは</h2>
+      <ul>
+        <li>崩れる場所を1〜2拍、または1〜2小節だけ切り出して練習します。</li>
+        <li>つなげるときは<b>後ろから</b>（最後の2小節 → 後半 → 全体）。疲れてくる終盤ほど練習回数が多くなります。</li>
+      </ul>
+    </div>
+    <div class="card guide">
+      <h2>上達は寝ている間にも進む</h2>
+      <p>体の動きは、練習した後の睡眠中にも固まっていきます。その日にできなくても、翌日できるようになることはよくあります。その日の出来だけで判断せず、記録の「日ごとのまとめ」で数日単位の伸びを見てください。</p>
+    </div>`;
 }
 
 /* ========== 記録画面 ========== */
