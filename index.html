@@ -239,9 +239,9 @@ const DEFAULT_PRESETS = [
   { id: 'b1', track: 'B', name: 'ゆっくり', bpm: 160, work: 90,  rest: 60, sets: 3 },
   { id: 'b2', track: 'B', name: 'ターゲット', bpm: 188, work: 30,  rest: 30, sets: 8 },
   { id: 'b3', track: 'B', name: 'チャレンジ', bpm: 200, work: 30,  rest: 30, sets: 5 },
-  { id: 'c3', track: 'C', name: 'ゆっくり', bpm: 72,  work: 180, rest: 60, sets: 3 },
-  { id: 'c1', track: 'C', name: 'ターゲット', bpm: 85,  work: 15,  rest: 15, sets: 8,  bars: 4 },
-  { id: 'c2', track: 'C', name: 'チャレンジ', bpm: 96,  work: 15,  rest: 15, sets: 10, bars: 4 },
+  { id: 'c3', track: 'C', name: 'ゆっくり', bpm: 72,  work: 60,  rest: 20, sets: 3 },
+  { id: 'c1', track: 'C', name: 'ターゲット', bpm: 89,  work: 15,  rest: 15, sets: 8,  bars: 4 },
+  { id: 'c2', track: 'C', name: 'チャレンジ', bpm: 96,  work: 30,  rest: 30, sets: 4 },
 ];
 // 呼び名：ゆっくり＝遅めで形を固める／ターゲット＝目標テンポで長さを伸ばす／チャレンジ＝目標より速く。一部でもできればよい、ターゲットを楽にするため。この順に練習する
 const ROLE_ORDER = ['ゆっくり', 'ターゲット', 'チャレンジ'];
@@ -925,7 +925,11 @@ const ACT = {
     if (R.phase === 'work') R.failed = true;
     advance(t + 0.05);
   },
-  rbpm(v) { R.base = clamp(R.base + int(v), BPM_MIN, BPM_MAX); cur.bpm = R.down ? downBpm() : R.base; updateRunButtons(); },
+  rbpm(v) {
+    R.base = clamp(R.base + int(v), BPM_MIN, BPM_MAX); cur.bpm = R.down ? downBpm() : R.base; updateRunButtons();
+    // 練習中に変えたテンポは、そのままプリセットに上書き保存する（一段下げの分は含めない）
+    const p = presets.find(x => x.id === cur.id); if (p) { p.bpm = R.base; savePresets(); }
+  },
   // 休憩中に、次のセットだけ自分で一段下げる（もう一度押すと元に戻す）
   rdown() {
     if (!R || R.phase !== 'rest') return;
@@ -1053,7 +1057,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && !R.paused) keepAwake(true);
 });
 
-if (freshInstall) prefs.migV = 7;
+if (freshInstall) prefs.migV = 8;
 // 2026-11 呼び名を役割名にそろえる（数値はそのまま。記録の名前も合わせる）
 if ((prefs.migV || 1) < 2) {
   const RENAME = { A: { '土台': '本番', 'クラスター': '上乗せ' }, B: { 'バースト': '本番' } };
@@ -1091,6 +1095,14 @@ if (prefs.migV < 7) {
   presets.forEach(p => { if (p.name === '速め') p.name = 'チャレンジ'; });
   logs.forEach(l => { if (l.preset === '速め') l.preset = 'チャレンジ'; });
   prefs.migV = 7; save('presets', presets); save('logs', logs); savePrefs();
+}
+// 2026-11 Cのゆっくりを1分/20秒×3、チャレンジの休憩を30秒に（考え方画面の①②）
+if (prefs.migV < 8) {
+  presets.filter(p => p.track === 'C').forEach(p => {
+    if (p.name === 'ゆっくり') Object.assign(p, { work: 60, rest: 20, sets: 3, bars: 0 });
+    if (p.name === 'チャレンジ') p.rest = 30;
+  });
+  prefs.migV = 8; save('presets', presets); savePrefs();
 }
 sortLogs(); initCur(); go('practice');
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
