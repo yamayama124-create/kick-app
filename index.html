@@ -166,6 +166,9 @@ table.bench th:first-child,table.bench td:first-child{text-align:left}
 table.bench td{padding:9px 4px;text-align:right;border-top:1px solid var(--line)}
 table.bench tr[data-act]{cursor:pointer}
 .best{color:var(--warn)}
+.day{background:var(--s1);border-radius:14px;padding:10px 14px;margin:8px 0}
+.day-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.dl{font-size:14px;margin-top:5px}
 .logitem{display:block;width:100%;text-align:left;background:var(--s1);border-radius:14px;padding:12px 14px;margin:8px 0;border-left:4px solid var(--tc)}
 .li-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .li-top b{font-size:17px}
@@ -246,7 +249,7 @@ const freshInstall = load('presets', null) == null;
 let presets = load('presets', null) || DEFAULT_PRESETS.map(p => ({ ...p }));
 let logs = load('logs', []);
 let bench = load('bench', []);
-let prefs = Object.assign({ track: 'A', click: true, accent: true, beats: 4, prep: 5, vol: 0.9, presetA: 'a1', presetB: 'b1', presetC: 'c1', drop: 4 }, load('prefs', {}));
+let prefs = Object.assign({ track: 'A', click: true, accent: true, beats: 4, prep: 5, vol: 0.9, presetA: 'a1', presetB: 'b1', presetC: 'c1', drop: 4, countIn: { A: 2, B: 2, C: 1 }, autoSave: true }, load('prefs', {}));
 const savePresets = () => save('presets', presets);
 const saveLogs = () => { sortLogs(); save('logs', logs); };
 const saveBench = () => { bench.sort((a, b) => b.date.localeCompare(a.date)); save('bench', bench); };
@@ -364,6 +367,8 @@ function renderPractice() {
       <button class="tg ${prefs.accent ? 'on' : ''}" data-act="toggle" data-v="accent">拍の頭にアクセント<b>${prefs.accent ? 'ON' : 'OFF'}</b></button>
       <button class="tg" data-act="cycle" data-v="beats">アクセントの間隔<b>${prefs.beats}拍ごと</b></button>
       <button class="tg" data-act="cycle" data-v="prep">スタート前の準備<b>${prefs.prep}秒</b></button>
+      <button class="tg" data-act="countin">カウント（${cur.track}）<b>${countBars(cur.track)}小節</b></button>
+      <button class="tg ${prefs.autoSave ? 'on' : ''}" data-act="toggle" data-v="autoSave">終わったら<b>${prefs.autoSave ? '自動で保存' : '確認して保存'}</b></button>
       <button class="tg" data-act="cycle" data-v="drop">崩れた後の1セット<b>${prefs.drop ? '♩−' + prefs.drop + 'で立て直し' : '下げない'}</b></button>
       <label class="volrow">音量<input type="range" id="vol" min="0.1" max="1" step="0.05" value="${prefs.vol}"></label>
     </div>
@@ -424,7 +429,7 @@ function enter(phase, at, dur) {
 function startRun() {
   ensureAudio();
   R = { phase: 'prep', set: 1, works: [], rests: [], vis: [], cd: {}, paused: false, start: 0, end: 0, beat: 0, nextBeat: 0, startedAt: Date.now(), base: cur.bpm, down: false, downs: 0, failed: false };
-  enter('prep', ac.currentTime + 0.15, Math.max(prefs.prep, COUNT_IN * 60 / cur.bpm + 0.5));
+  enter('prep', ac.currentTime + 0.15, Math.max(prefs.prep, countBeats() * 60 / cur.bpm + 0.5));
   const run = $('#run'); run.className = 'overlay run t' + cur.track; run.hidden = false;
   $('#r-name').textContent = `${cur.track}：${cur.name}`;
   $('#r-beats').innerHTML = Array.from({ length: prefs.beats }, () => '<i></i>').join('');
@@ -432,7 +437,9 @@ function startRun() {
   clearInterval(timerId); timerId = setInterval(tick, 25);
   requestAnimationFrame(draw); keepAwake(true);
 }
-const COUNT_IN = 8; // 休憩・準備の終わりのカウント（2小節）
+// 休憩・準備の終わりのカウント。トラックごとに1小節か2小節
+const countBars = t => (prefs.countIn && prefs.countIn[t]) || 2;
+const countBeats = () => countBars(cur.track) * 4;
 function tick() {
   if (!R || R.paused || R.phase === 'done') return;
   const t = ac.currentTime, ahead = t + 0.15, iv = 60 / cur.bpm;
@@ -446,8 +453,9 @@ function tick() {
     }
   } else {
     // 休憩・準備の終わりに、テンポで2小節のカウント
-    for (let k = 0; k < COUNT_IN; k++) {
-      const bt = R.end - (COUNT_IN - k) * iv;
+    const CN = countBeats();
+    for (let k = 0; k < CN; k++) {
+      const bt = R.end - (CN - k) * iv;
       if (!R.cd[k] && bt < ahead && bt >= R.start - 0.001) {
         if (bt >= t - 0.02) countClick(bt, k % 4 === 0);
         R.vis.push({ t: bt, i: k % prefs.beats, acc: k % 4 === 0 }); R.cd[k] = 1;
@@ -498,10 +506,10 @@ function closeRun() {
   render();
 }
 const PH = {
-  prep: ['準備', 'ペダルに足を乗せて。カウント2小節のあとスタート'],
+  prep: ['準備', 'ペダルに足を乗せて。カウントのあとスタート'],
   work: ['ワーク', '崩れたら止めてOK。リセットして再開'],
   rest: ['リセット中', '脱力して呼吸。次のセットをクリーンに'],
-  done: ['おつかれさま', '記録を作っています…'],
+  done: ['おつかれさま', '記録しています…'],
 };
 function updateRunButtons() {
   if (!R) return;
@@ -548,7 +556,22 @@ function openDraft() {
     works, rests, total: sum(works), maxWork: Math.max(...works), avgRest: rests.length ? Math.round(avg(rests)) : cur.rest,
     drops: R.downs || 0, cond: '', memo: '',
   };
+  if (prefs.autoSave) {
+    // 確認なしでそのまま保存。メモは記録画面からあとで足せる
+    logs.push(L); saveLogs();
+    R = null; clearInterval(timerId); $('#run').hidden = true;
+    H.track = L.track; H.preset = L.preset;
+    backToPractice(); toast('記録しました');
+    return;
+  }
   openLogForm(L, true);
+}
+// 練習画面に戻り、次のプリセット（ゆっくり→ターゲット→速め）を選んでおく
+function backToPractice() {
+  const list = presets.filter(p => p.track === cur.track).sort((a, b) => roleIdx(a.name) - roleIdx(b.name));
+  const i = list.findIndex(p => p.id === cur.id);
+  if (i >= 0 && i < list.length - 1) selectPreset(list[i + 1].id);
+  go('practice');
 }
 function timeIn(name, sec) {
   return `<span class="timein"><input type="number" inputmode="numeric" name="${name}_m" value="${Math.floor(sec / 60)}" min="0">分
@@ -643,6 +666,8 @@ function renderHistory() {
 
   $('#scr-history').innerHTML = `
     <h1>記録</h1>
+    <h3>日ごとのまとめ</h3>
+    ${daySummary()}
     <h3>回数と時間</h3>
     <div class="stats">${stat('今週', per(ws, far))}${stat('先週', per(pws, ws))}${stat('今月', per(ms, far))}${stat('先月', per(pms, ms))}</div>
 
@@ -656,7 +681,7 @@ function renderHistory() {
     <h3>ベンチマーク（月1回）</h3>
     <div class="card">${benchHTML}<div class="btnrow"><button data-act="benchnew">＋ 計測を記録</button></div></div>
 
-    <h3>履歴</h3>
+    <h3>履歴（1回ずつ。タップでメモを足せます）</h3>
     <div class="seg sm">${[['all', 'すべて'], ...TRACK_KEYS.map(k => [k, k + '：' + TRACKS[k].sub])].map(([v, n]) => `<button class="${v === 'all' ? '' : 't' + v} ${v === H.filter ? 'on' : ''}" ${v === 'all' ? 'style="--tc:var(--tx)"' : ''} data-act="hfilter" data-v="${v}">${n}</button>`).join('')}</div>
     <div class="btnrow"><button data-act="manual">＋ 手で記録を追加</button></div>
     ${listHTML}
@@ -670,6 +695,21 @@ function renderHistory() {
       <button data-act="backup">バックアップを保存</button>
       <button data-act="restore">バックアップから戻す</button>
     </div>`;
+}
+// 日ごとに、どのメニューを何テンポで何回やったかをまとめる
+function daySummary() {
+  const days = [...new Set(logs.map(l => l.date))].slice(0, 14);
+  if (!days.length) return '<div class="empty">まだ記録がありません</div>';
+  return days.map(d => {
+    const ls = logs.filter(l => l.date === d);
+    const rows = TRACK_KEYS.map(k => {
+      const g = {};
+      ls.filter(l => l.track === k).forEach(l => { const x = g[l.preset] || (g[l.preset] = { n: 0, bpm: 0 }); x.n++; x.bpm = Math.max(x.bpm, l.bpm); });
+      const names = Object.keys(g).sort((a, b) => roleIdx(a) - roleIdx(b));
+      return names.length ? `<div class="dl t${k}"><span class="badge">${k}</span> ${names.map(n => `${esc(n)} ♩${g[n].bpm}×${g[n].n}`).join('・')}</div>` : '';
+    }).join('');
+    return `<div class="day"><div class="day-h"><b>${md(d)}</b><span class="mu small">${ls.length}回・ワーク ${fmtL(sum(ls, 'total'))}</span></div>${rows}</div>`;
+  }).join('');
 }
 function chartSVG(pl) {
   const W = 340, Hh = 170, L = 44, Rr = 8, T = 10, B = 24, n = pl.length;
@@ -756,6 +796,7 @@ const ACT = {
     renderPractice();
   },
   toggle(v) { prefs[v] = !prefs[v]; savePrefs(); renderPractice(); },
+  countin() { prefs.countIn = { ...prefs.countIn, [cur.track]: countBars(cur.track) === 2 ? 1 : 2 }; savePrefs(); renderPractice(); },
   unit() {
     if (cur.bars) { cur.work = clamp(Math.round(workSec(cur) / 5) * 5, 5, 3600); cur.bars = 0; }
     else cur.bars = clamp(Math.round(cur.work * cur.bpm / 240), 1, 64);
@@ -847,13 +888,7 @@ const ACT = {
     const fromRun = !!R;
     if (R) { R = null; clearInterval(timerId); $('#run').hidden = true; }
     H.track = L.track; H.preset = L.preset;
-    if (fromRun) {
-      // 練習画面に戻り、次のプリセット（ゆっくり→ターゲット→速め）を選んでおく
-      const list = presets.filter(p => p.track === cur.track).sort((a, b) => roleIdx(a.name) - roleIdx(b.name));
-      const i = list.findIndex(p => p.id === cur.id);
-      if (i >= 0 && i < list.length - 1) selectPreset(list[i + 1].id);
-      go('practice'); toast('記録しました');
-    } else { go('history'); toast('記録しました'); }
+    if (fromRun) { backToPractice(); toast('記録しました'); } else { go('history'); toast('記録しました'); }
   },
   logdiscard() { if (!confirm('この練習を記録せずに閉じますか？')) return; closeSheet(); closeRun(); },
   logedit(v) { const L = logs.find(x => x.id === v); if (L) openLogForm(L, false); },
