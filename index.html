@@ -229,16 +229,16 @@ const TRACK_KEYS = Object.keys(TRACKS);
 const DEFAULT_PRESETS = [
   { id: 'a0', track: 'A', name: 'ゆっくり', bpm: 110, work: 180, rest: 60, sets: 3 },
   { id: 'a1', track: 'A', name: 'ターゲット', bpm: 128, work: 180, rest: 60, sets: 3 },
-  { id: 'a2', track: 'A', name: '速め',     bpm: 150, work: 30,  rest: 30, sets: 10 },
+  { id: 'a2', track: 'A', name: 'チャレンジ', bpm: 150, work: 30,  rest: 30, sets: 10 },
   { id: 'b1', track: 'B', name: 'ゆっくり', bpm: 160, work: 90,  rest: 60, sets: 3 },
   { id: 'b2', track: 'B', name: 'ターゲット', bpm: 188, work: 30,  rest: 30, sets: 8 },
-  { id: 'b3', track: 'B', name: '速め',     bpm: 200, work: 30,  rest: 30, sets: 5 },
+  { id: 'b3', track: 'B', name: 'チャレンジ', bpm: 200, work: 30,  rest: 30, sets: 5 },
   { id: 'c3', track: 'C', name: 'ゆっくり', bpm: 72,  work: 180, rest: 60, sets: 3 },
   { id: 'c1', track: 'C', name: 'ターゲット', bpm: 85,  work: 15,  rest: 15, sets: 8,  bars: 4 },
-  { id: 'c2', track: 'C', name: '速め',     bpm: 96,  work: 15,  rest: 15, sets: 10, bars: 4 },
+  { id: 'c2', track: 'C', name: 'チャレンジ', bpm: 96,  work: 15,  rest: 15, sets: 10, bars: 4 },
 ];
-// 呼び名：ゆっくり＝遅めで形を固める／ターゲット＝目標テンポで長さを伸ばす／速め＝目標より速く短く。この順に練習する
-const ROLE_ORDER = ['ゆっくり', 'ターゲット', '速め'];
+// 呼び名：ゆっくり＝遅めで形を固める／ターゲット＝目標テンポで長さを伸ばす／チャレンジ＝目標より速く。一部でもできればよい、ターゲットを楽にするため。この順に練習する
+const ROLE_ORDER = ['ゆっくり', 'ターゲット', 'チャレンジ'];
 const roleIdx = n => { const i = ROLE_ORDER.indexOf(n); return i < 0 ? 99 : i; };
 const CONDS = ['◎ 好調', '○ 普通', '△ いまいち', '× 不調'];
 const BPM_MIN = 40, BPM_MAX = 210;
@@ -571,7 +571,7 @@ function openDraft() {
   }
   openLogForm(L, true);
 }
-// 練習画面に戻り、次のプリセット（ゆっくり→ターゲット→速め）を選んでおく
+// 練習画面に戻り、次のプリセット（ゆっくり→ターゲット→チャレンジ）を選んでおく
 function backToPractice() {
   const list = presets.filter(p => p.track === cur.track).sort((a, b) => roleIdx(a.name) - roleIdx(b.name));
   const i = list.findIndex(p => p.id === cur.id);
@@ -980,7 +980,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && !R.paused) keepAwake(true);
 });
 
-if (freshInstall) prefs.migV = 6;
+if (freshInstall) prefs.migV = 7;
 // 2026-11 呼び名を役割名にそろえる（数値はそのまま。記録の名前も合わせる）
 if ((prefs.migV || 1) < 2) {
   const RENAME = { A: { '土台': '本番', 'クラスター': '上乗せ' }, B: { 'バースト': '本番' } };
@@ -1012,6 +1012,12 @@ if (prefs.migV < 6) {
   presets.forEach(p => { if (p.name === '目標') p.name = 'ターゲット'; });
   logs.forEach(l => { if (l.preset === '目標') l.preset = 'ターゲット'; });
   prefs.migV = 6; save('presets', presets); save('logs', logs); savePrefs();
+}
+// 2026-11 「速め」を「チャレンジ」に
+if (prefs.migV < 7) {
+  presets.forEach(p => { if (p.name === '速め') p.name = 'チャレンジ'; });
+  logs.forEach(l => { if (l.preset === '速め') l.preset = 'チャレンジ'; });
+  prefs.migV = 7; save('presets', presets); save('logs', logs); savePrefs();
 }
 sortLogs(); initCur(); go('practice');
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
