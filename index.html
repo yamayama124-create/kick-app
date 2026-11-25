@@ -577,13 +577,14 @@ function openDraft() {
   }
   openLogForm(L, true);
 }
-// 練習画面に戻り、次のプリセット（ゆっくり→ターゲット→チャレンジ）を選んでおく
+// 練習画面に戻る。プリセットは今やったものを選んだまま（次に何をやるかは自分で選ぶ）
 function backToPractice() {
-  const list = presets.filter(p => p.track === cur.track).sort((a, b) => roleIdx(a.name) - roleIdx(b.name));
-  const i = list.findIndex(p => p.id === cur.id);
-  if (i >= 0 && i < list.length - 1) selectPreset(list[i + 1].id);
+  const p = presets.find(x => x.id === cur.id);
+  if (p) cur.bpm = p.bpm;
   go('practice');
 }
+// テンポを変えたら、そのままプリセットにも保存する
+function keepBpm() { const p = presets.find(x => x.id === cur.id); if (p && p.bpm !== cur.bpm) { p.bpm = cur.bpm; savePresets(); } }
 function timeIn(name, sec) {
   return `<span class="timein"><input type="number" inputmode="numeric" name="${name}_m" value="${Math.floor(sec / 60)}" min="0">分
     <input type="number" inputmode="numeric" name="${name}_s" value="${sec % 60}" min="0" max="59">秒</span>`;
@@ -655,7 +656,7 @@ function renderGuide() {
         <li>チャレンジ</li>
         <li>最後にターゲットを1セット。チャレンジの後で<b>楽に感じるか</b>を体で確かめます。</li>
       </ol>
-      <p>記録は終わると自動で保存され、次のメニューが選ばれた状態で練習画面に戻ります。新しい難しい動きは、<b>疲れていない練習の最初</b>にやると効果的です。</p>
+      <p>記録は終わると自動で保存され、同じメニューを選んだまま練習画面に戻ります。次に何をやるかは自分で選びます。テンポを変えると、その数値がメニューに自動で保存されます。新しい難しい動きは、<b>疲れていない練習の最初</b>にやると効果的です。</p>
     </div>
     <div class="card guide">
       <h2>崩れたとき（チャレンジポイント）</h2>
@@ -865,7 +866,7 @@ const ACT = {
   // 練習設定
   track(v) { prefs.track = v; savePrefs(); initCur(); renderPractice(); },
   preset(v) { selectPreset(v); renderPractice(); },
-  bpm(v) { cur.bpm = clamp(cur.bpm + int(v), BPM_MIN, BPM_MAX); renderPractice(); },
+  bpm(v) { cur.bpm = clamp(cur.bpm + int(v), BPM_MIN, BPM_MAX); keepBpm(); renderPractice(); },
   st(v, b) {
     const k = b.dataset.k, d = int(v);
     if (k === 'sets') cur.sets = clamp(cur.sets + d, 1, 50);
@@ -1043,7 +1044,7 @@ document.addEventListener('click', e => {
   const fn = ACT[b.dataset.act]; if (fn) fn(b.dataset.v, b, e);
 });
 document.addEventListener('input', e => {
-  if (e.target.id === 'bpmr') { cur.bpm = int(e.target.value); $('#bpmv').textContent = cur.bpm; }
+  if (e.target.id === 'bpmr') { cur.bpm = int(e.target.value); $('#bpmv').textContent = cur.bpm; keepBpm(); }
   if (e.target.id === 'pname') { cur.name = e.target.value.trim() || '無題'; }
   if (e.target.id === 'vol') { prefs.vol = parseFloat(e.target.value); if (master) master.gain.value = prefs.vol; }
 });
