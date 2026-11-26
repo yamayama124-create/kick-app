@@ -1,5 +1,5 @@
 // オフライン用：一度開いたファイルを保存しておき、電波がないときはそれを使う
-const CACHE = 'kick-v16';
+const CACHE = 'kick-v17';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

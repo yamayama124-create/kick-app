@@ -16,7 +16,7 @@
 :root{
   --bg:#0c0e11;--s1:#161a20;--s2:#1f242c;--s3:#2b323c;
   --tx:#f3f5f7;--mu:#9aa4b1;--line:#2b323c;
-  --a:#ff8a3d;--b:#38c6f4;--c:#b48cff;--ok:#58d68d;--warn:#ffd24a;--bad:#ff6363;
+  --a:#ff8a3d;--b:#38c6f4;--c:#b48cff;--d:#ff6fa8;--ok:#58d68d;--warn:#ffd24a;--bad:#ff6363;
   color-scheme:dark;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -39,7 +39,7 @@ h3{font-size:16px;margin:22px 0 10px;color:var(--mu);font-weight:600;letter-spac
 .mu{color:var(--mu)}
 .small{font-size:13px}
 .card{background:var(--s1);border-radius:16px;padding:16px;margin:12px 0}
-.tA{--tc:var(--a)} .tB{--tc:var(--b)} .tC{--tc:var(--c)}
+.tA{--tc:var(--a)} .tB{--tc:var(--b)} .tC{--tc:var(--c)} .tD{--tc:var(--d)}
 
 /* tabs */
 #tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:rgba(18,21,26,.96);border-top:1px solid var(--line);
@@ -64,9 +64,10 @@ h3{font-size:16px;margin:22px 0 10px;color:var(--mu);font-weight:600;letter-spac
 
 /* practice */
 .seg{display:flex;background:var(--s1);border-radius:14px;padding:4px;gap:4px}
-.seg button{flex:1;padding:12px 6px;border-radius:10px;font-weight:700;font-size:17px;color:var(--mu)}
+.seg button{flex:1;padding:12px 4px;border-radius:10px;font-weight:700;font-size:15px;color:var(--mu);line-height:1.25}
 .seg button.on{background:var(--tc);color:#111}
 .seg.sm button{padding:8px 4px;font-size:15px}
+.seg button small{display:block;font-size:12px;font-weight:600;white-space:nowrap;letter-spacing:-.03em}
 .label{color:var(--mu);font-size:14px;margin:16px 0 8px}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{background:var(--s1);border:2px solid transparent;border-radius:12px;padding:8px 12px;text-align:left;font-weight:700;font-size:16px;min-height:56px}
@@ -230,6 +231,7 @@ const TRACKS = {
   A: { sub: '確実', goal: '目標：♩130前後のダブルを確実に' },
   B: { sub: '瞬発', goal: '目標：押し込む系を♩180で30秒×8をきれいに' },
   C: { sub: 'ジェント', goal: '目標：「Rain」のキック（32分）を♩100で4小節きれいに' },
+  D: { sub: 'オルタネート', goal: '片手16分と両手32分の切り替えを、つなぎ目まできれいに' },
 };
 const TRACK_KEYS = Object.keys(TRACKS);
 const DEFAULT_PRESETS = [
@@ -242,6 +244,7 @@ const DEFAULT_PRESETS = [
   { id: 'c3', track: 'C', name: 'ゆっくり', bpm: 72,  work: 60,  rest: 20, sets: 3 },
   { id: 'c1', track: 'C', name: 'ターゲット', bpm: 89,  work: 15,  rest: 15, sets: 8,  bars: 4 },
   { id: 'c2', track: 'C', name: 'チャレンジ', bpm: 96,  work: 30,  rest: 30, sets: 4 },
+  { id: 'd1', track: 'D', name: '片手16分・両手32分', bpm: 80, work: 120, rest: 30, sets: 3, bars: 40 },
 ];
 // 呼び名：ゆっくり＝遅めで形を固める／ターゲット＝目標テンポで長さを伸ばす／チャレンジ＝目標より速く。一部でもできればよい、ターゲットを楽にするため。この順に練習する
 const ROLE_ORDER = ['ゆっくり', 'ターゲット', 'チャレンジ'];
@@ -257,7 +260,7 @@ const freshInstall = load('presets', null) == null;
 let presets = load('presets', null) || DEFAULT_PRESETS.map(p => ({ ...p }));
 let logs = load('logs', []);
 let bench = load('bench', []);
-let prefs = Object.assign({ track: 'A', click: true, accent: true, beats: 4, prep: 5, vol: 0.9, cueVol: 0.3, presetA: 'a1', presetB: 'b1', presetC: 'c1', drop: 4, countIn: { A: 2, B: 2, C: 1 }, autoSave: true }, load('prefs', {}));
+let prefs = Object.assign({ track: 'A', click: true, accent: true, beats: 4, prep: 5, vol: 0.9, cueVol: 0.3, presetA: 'a1', presetB: 'b1', presetC: 'c1', presetD: 'd1', drop: 4, countIn: { A: 2, B: 2, C: 1, D: 2 }, autoSave: true }, load('prefs', {}));
 const savePresets = () => save('presets', presets);
 const saveLogs = () => { sortLogs(); save('logs', logs); };
 const saveBench = () => { bench.sort((a, b) => b.date.localeCompare(a.date)); save('bench', bench); };
@@ -353,7 +356,7 @@ function renderPractice() {
       <button data-act="st" data-k="${k}" data-v="1" aria-label="${name}を増やす">＋</button></div>`;
   $('#scr-practice').className = 'scr t' + t;
   $('#scr-practice').innerHTML = `
-    <div class="seg">${TRACK_KEYS.map(x => `<button class="t${x} ${x === t ? 'on' : ''}" data-act="track" data-v="${x}">${x}：${TRACKS[x].sub}</button>`).join('')}</div>
+    <div class="seg">${TRACK_KEYS.map(x => `<button class="t${x} ${x === t ? 'on' : ''}" data-act="track" data-v="${x}">${x}<small>${TRACKS[x].sub}</small></button>`).join('')}</div>
     <div class="label">プリセット</div>
     <div class="chips">${list.map(p => `<button class="chip ${p.id === cur.id ? 'on' : ''}" data-act="preset" data-v="${p.id}">${esc(p.name)}<small>${presetSummary(p)}</small></button>`).join('')}
       <button class="chip add" data-act="newpreset">＋ 追加</button></div>
@@ -598,7 +601,7 @@ function openLogForm(L, isNew) {
     <h2>${isNew ? (L.works ? '練習の記録（下書き）' : '記録を手で追加') : '記録を編集'}</h2>
     <label>日付<input type="date" name="date" value="${L.date}"></label>
     <div class="label">トラック</div>
-    <div class="seg sm">${TRACK_KEYS.map(x => `<button class="t${x} ${x === L.track ? 'on' : ''}" data-act="lf-track" data-v="${x}">${x}：${TRACKS[x].sub}</button>`).join('')}</div>
+    <div class="seg sm">${TRACK_KEYS.map(x => `<button class="t${x} ${x === L.track ? 'on' : ''}" data-act="lf-track" data-v="${x}">${x}<small>${TRACKS[x].sub}</small></button>`).join('')}</div>
     <label>メニュー<input name="preset" value="${esc(L.preset)}" maxlength="20"></label>
     <div class="grid2">
       <label>テンポ ♩<input type="number" inputmode="numeric" name="bpm" value="${L.bpm}"></label>
@@ -753,7 +756,7 @@ function renderHistory() {
 
     <h3>伸び（メニューごと）</h3>
     <div class="card t${H.track}">
-      <div class="seg sm">${TRACK_KEYS.map(x => `<button class="t${x} ${x === H.track ? 'on' : ''}" data-act="htrack" data-v="${x}">${x}：${TRACKS[x].sub}</button>`).join('')}</div>
+      <div class="seg sm">${TRACK_KEYS.map(x => `<button class="t${x} ${x === H.track ? 'on' : ''}" data-act="htrack" data-v="${x}">${x}<small>${TRACKS[x].sub}</small></button>`).join('')}</div>
       ${names.length > 1 ? `<div class="chips" style="margin-top:10px">${names.map(n => `<button class="chip ${n === H.preset ? 'on' : ''}" data-act="hpreset" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}
       <div style="margin-top:10px">${prog}</div>
     </div>
@@ -762,7 +765,7 @@ function renderHistory() {
     <div class="card">${benchHTML}<div class="btnrow"><button data-act="benchnew">＋ 計測を記録</button></div></div>
 
     <h3>履歴（1回ずつ。タップでメモを足せます）</h3>
-    <div class="seg sm">${[['all', 'すべて'], ...TRACK_KEYS.map(k => [k, k + '：' + TRACKS[k].sub])].map(([v, n]) => `<button class="${v === 'all' ? '' : 't' + v} ${v === H.filter ? 'on' : ''}" ${v === 'all' ? 'style="--tc:var(--tx)"' : ''} data-act="hfilter" data-v="${v}">${n}</button>`).join('')}</div>
+    <div class="seg sm">${[['all', 'すべて'], ...TRACK_KEYS.map(k => [k, k + '<small>' + TRACKS[k].sub + '</small>'])].map(([v, n]) => `<button class="${v === 'all' ? '' : 't' + v} ${v === H.filter ? 'on' : ''}" ${v === 'all' ? 'style="--tc:var(--tx)"' : ''} data-act="hfilter" data-v="${v}">${n}</button>`).join('')}</div>
     <div class="btnrow"><button data-act="manual">＋ 手で記録を追加</button></div>
     ${listHTML}
 
@@ -1107,6 +1110,11 @@ if (prefs.migV < 8) {
     if (p.name === 'チャレンジ') p.rest = 30;
   });
   prefs.migV = 8; save('presets', presets); savePrefs();
+}
+// 2026-11 トラックD（オルタネート）を追加
+if (!prefs.migD) {
+  if (!presets.some(p => p.track === 'D')) DEFAULT_PRESETS.filter(p => p.track === 'D').forEach(p => presets.push({ ...p }));
+  prefs.migD = 1; save('presets', presets); savePrefs();
 }
 sortLogs(); initCur(); go('practice');
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
