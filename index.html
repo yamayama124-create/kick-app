@@ -73,6 +73,9 @@ h3{font-size:16px;margin:22px 0 10px;color:var(--mu);font-weight:600;letter-spac
 .chip small{display:block;font-weight:400;color:var(--mu);font-size:12px}
 .chip.on{border-color:var(--tc);background:var(--s2)}
 .chip.add{color:var(--mu);font-weight:600}
+.goalrow{display:block}
+.goalrow textarea{margin-top:6px;font-size:15px;background:var(--s1);border-color:transparent}
+.goalrow textarea:focus{border-color:var(--s3)}
 .pname{font-size:18px;font-weight:700;background:transparent;border-color:transparent;padding:6px 4px}
 .pname:focus{background:var(--s2);border-color:var(--s3)}
 .namerow{display:flex;align-items:center;gap:8px}
@@ -92,7 +95,8 @@ h3{font-size:16px;margin:22px 0 10px;color:var(--mu);font-weight:600;letter-spac
 .tg{background:var(--s2);border-radius:12px;padding:12px;font-size:15px;text-align:left}
 .tg b{display:block;font-size:18px}
 .tg.on b{color:var(--ok)}
-.volrow{grid-column:1/-1;display:flex;align-items:center;gap:10px;color:var(--mu);font-size:14px}
+.volrow{grid-column:1/-1;display:flex;align-items:center;gap:10px;color:var(--mu);font-size:14px;white-space:nowrap}
+.volrow.small{white-space:normal;font-size:12px;margin-top:-4px}
 .start{display:block;width:100%;background:var(--tc);color:#111;font-size:26px;font-weight:800;border-radius:18px;padding:20px 0;margin:16px 0 8px}
 .btnrow{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
 .btnrow button{flex:1;background:var(--s2);border-radius:12px;padding:12px 8px;font-size:15px;font-weight:600;min-width:90px}
@@ -227,15 +231,16 @@ table.bench tr[data-act]{cursor:pointer}
 'use strict';
 /* ========== 基本データ ========== */
 const TRACKS = {
-  A: { sub: '確実', goal: '目標：♩130前後のダブルを確実に' },
-  B: { sub: '瞬発', goal: '目標：押し込む系を♩180で30秒×8をきれいに' },
-  C: { sub: 'ジェント', goal: '目標：「Rain」のキック（32分）を♩100で4小節きれいに' },
+  A: { sub: '確実', goal: '目標のテンポで、確実にきれいに続けられるようにする（ルーディメンツの定着など）' },
+  B: { sub: '瞬発', goal: '速いテンポを、短い時間でもきれいに出せるようにする（基礎練のスピードアップなど）' },
+  C: { sub: 'フレーズ', goal: '曲のフレーズを、目標のテンポと実際の小節数できれいに叩けるようにする' },
 };
 const TRACK_KEYS = Object.keys(TRACKS);
 const DEFAULT_PRESETS = [
   { id: 'a0', track: 'A', name: 'ゆっくり', bpm: 110, work: 180, rest: 60, sets: 3 },
   { id: 'a1', track: 'A', name: 'ターゲット', bpm: 128, work: 180, rest: 60, sets: 3 },
   { id: 'a2', track: 'A', name: 'チャレンジ', bpm: 150, work: 30,  rest: 30, sets: 10 },
+  { id: 'a3', track: 'A', name: '持続', bpm: 110, work: 300, rest: 60, sets: 2 },
   { id: 'b1', track: 'B', name: 'ゆっくり', bpm: 160, work: 90,  rest: 60, sets: 3 },
   { id: 'b2', track: 'B', name: 'ターゲット', bpm: 188, work: 30,  rest: 30, sets: 8 },
   { id: 'b3', track: 'B', name: 'チャレンジ', bpm: 200, work: 30,  rest: 30, sets: 5 },
@@ -243,8 +248,8 @@ const DEFAULT_PRESETS = [
   { id: 'c1', track: 'C', name: 'ターゲット', bpm: 89,  work: 15,  rest: 15, sets: 8,  bars: 4 },
   { id: 'c2', track: 'C', name: 'チャレンジ', bpm: 96,  work: 30,  rest: 30, sets: 4 },
 ];
-// 呼び名：ゆっくり＝遅めで形を固める／ターゲット＝目標テンポで長さを伸ばす／チャレンジ＝目標より速く。一部でもできればよい、ターゲットを楽にするため。この順に練習する
-const ROLE_ORDER = ['ゆっくり', 'ターゲット', 'チャレンジ'];
+// 呼び名：ゆっくり＝遅めで形を固める／ターゲット＝目標テンポで長さを伸ばす／チャレンジ＝目標より速く。一部でもできればよい、ターゲットを楽にするため／持続＝ゆっくりのテンポで長く続ける。この順に練習する
+const ROLE_ORDER = ['ゆっくり', 'ターゲット', 'チャレンジ', '持続'];
 const roleIdx = n => { const i = ROLE_ORDER.indexOf(n); return i < 0 ? 99 : i; };
 const CONDS = ['◎ 好調', '○ 普通', '△ いまいち', '× 不調'];
 const BPM_MIN = 40, BPM_MAX = 210;
@@ -257,11 +262,13 @@ const freshInstall = load('presets', null) == null;
 let presets = load('presets', null) || DEFAULT_PRESETS.map(p => ({ ...p }));
 let logs = load('logs', []);
 let bench = load('bench', []);
-let prefs = Object.assign({ track: 'A', click: true, accent: true, beats: 4, prep: 5, vol: 0.9, presetA: 'a1', presetB: 'b1', presetC: 'c1', drop: 4, countIn: { A: 2, B: 2, C: 1 }, autoSave: true }, load('prefs', {}));
+let prefs = Object.assign({ track: 'A', click: true, accent: true, beats: 4, prep: 5, vol: 0.9, cueVol: 0.3, goals: {}, presetA: 'a1', presetB: 'b1', presetC: 'c1', drop: 4, countIn: { A: 2, B: 2, C: 1 }, autoSave: true }, load('prefs', {}));
 const savePresets = () => save('presets', presets);
 const saveLogs = () => { sortLogs(); save('logs', logs); };
 const saveBench = () => { bench.sort((a, b) => b.date.localeCompare(a.date)); save('bench', bench); };
 const savePrefs = () => save('prefs', prefs);
+// 目標は自分で書き換えられる。空なら最初の文
+const goalOf = t => (prefs.goals && prefs.goals[t]) || TRACKS[t].goal;
 function sortLogs() { logs.sort((a, b) => b.date.localeCompare(a.date) || (b.ts || 0) - (a.ts || 0)); }
 
 /* ========== 小道具 ========== */
@@ -306,7 +313,7 @@ function renderHome() {
     const last = logs.find(l => l.track === t);
     return `<button class="trackcard t${t}" data-track="${t}">
       <div class="tc-head"><span class="tc-badge">${t}</span><span class="tc-name">${TRACKS[t].sub}</span></div>
-      <div class="tc-goal">${TRACKS[t].goal}</div>
+      <div class="tc-goal">${esc(goalOf(t))}</div>
       <div class="tc-today">${ls.length ? `今日 ${ls.length}回・ワーク ${fmtL(sum(ls, 'total'))}` : '今日はまだ'}</div>
       ${last ? `<div class="tc-last">前回 ${md(last.date)}　${esc(last.preset)} ♩${last.bpm}</div>` : ''}
       <div class="tc-go">練習する →</div></button>`;
@@ -354,6 +361,7 @@ function renderPractice() {
   $('#scr-practice').className = 'scr t' + t;
   $('#scr-practice').innerHTML = `
     <div class="seg">${TRACK_KEYS.map(x => `<button class="t${x} ${x === t ? 'on' : ''}" data-act="track" data-v="${x}">${x}：${TRACKS[x].sub}</button>`).join('')}</div>
+    <label class="label goalrow">目標（タップで書き換え）<textarea id="goal" rows="2" maxlength="80" placeholder="${esc(TRACKS[t].goal)}">${esc((prefs.goals || {})[t] || '')}</textarea></label>
     <div class="label">プリセット</div>
     <div class="chips">${list.map(p => `<button class="chip ${p.id === cur.id ? 'on' : ''}" data-act="preset" data-v="${p.id}">${esc(p.name)}<small>${presetSummary(p)}</small></button>`).join('')}
       <button class="chip add" data-act="newpreset">＋ 追加</button></div>
@@ -378,7 +386,9 @@ function renderPractice() {
       <button class="tg" data-act="countin">カウント（${cur.track}）<b>${countBars(cur.track)}小節</b></button>
       <button class="tg ${prefs.autoSave ? 'on' : ''}" data-act="toggle" data-v="autoSave">終わったら<b>${prefs.autoSave ? '自動で保存' : '確認して保存'}</b></button>
       <button class="tg" data-act="cycle" data-v="drop">崩れた後の1セット<b>${prefs.drop ? '♩−' + prefs.drop + 'で立て直し' : '下げない'}</b></button>
-      <label class="volrow">音量<input type="range" id="vol" min="0.1" max="1" step="0.05" value="${prefs.vol}"></label>
+      <label class="volrow">全体の音量<input type="range" id="vol" min="0.1" max="1" step="0.05" value="${prefs.vol}"></label>
+      <label class="volrow">合図の音量<input type="range" id="cuevol" min="0" max="1" step="0.05" value="${prefs.cueVol}"></label>
+      <div class="volrow small">合図＝セットの始まり・終わり・練習の終わりの音。クリックとは別に調整できます</div>
     </div>
     <div class="btnrow">
       <button data-act="savepreset" ${dirty && cur.id ? '' : 'disabled'}>上書き保存</button>
@@ -389,33 +399,36 @@ function renderPractice() {
 }
 
 /* ========== 音 ========== */
-let ac = null, master = null, nodes = [];
+let ac = null, master = null, cueBus = null, nodes = [];
 function ensureAudio() {
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
   if (!ac) {
     const AC = window.AudioContext || window.webkitAudioContext;
     ac = new AC({ latencyHint: 'interactive' });
     master = ac.createGain(); master.connect(ac.destination);
+    cueBus = ac.createGain(); cueBus.connect(master);
   }
   master.gain.value = prefs.vol;
+  cueBus.gain.value = prefs.cueVol;
   if (ac.state !== 'running') ac.resume();
   const b = ac.createBuffer(1, 1, 22050), s = ac.createBufferSource(); s.buffer = b; s.connect(ac.destination); s.start(0);
 }
-function tone(at, f, d, v, type) {
+function tone(at, f, d, v, type, dest) {
   const o = ac.createOscillator(), g = ac.createGain();
   o.type = type || 'square'; o.frequency.setValueAtTime(f, at);
   g.gain.setValueAtTime(0.0001, at); g.gain.linearRampToValueAtTime(v, at + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, at + d);
-  o.connect(g); g.connect(master); o.start(at); o.stop(at + d + 0.03);
+  o.connect(g); g.connect(dest || master); o.start(at); o.stop(at + d + 0.03);
   const n = { o, at }; nodes.push(n);
   o.onended = () => { const i = nodes.indexOf(n); if (i >= 0) nodes.splice(i, 1); };
 }
 function cancelFrom(t) { nodes.slice().forEach(n => { if (n.at > t) { try { n.o.stop(); } catch (e) {} } }); }
 const click = (at, acc) => acc ? tone(at, 2000, 0.05, 1, 'square') : tone(at, 1300, 0.04, 0.55, 'square');
 const countClick = (at, first) => tone(at, first ? 1050 : 800, 0.08, 0.8, 'triangle');
+// 合図（スタート・セット終わり・全体の終わり）はクリックとは別の音量（cueBus）で鳴らす。クリックを大きくしても合図だけ大きくならないように
 function cue(kind, at) {
-  if (kind === 'go') { tone(at, 1568, 0.3, 0.9, 'square'); }
-  if (kind === 'rest') { tone(at, 880, 0.18, 0.9, 'triangle'); tone(at + 0.2, 587, 0.4, 0.9, 'triangle'); }
-  if (kind === 'done') { [523, 659, 784, 1047].forEach((f, i) => tone(at + i * 0.14, f, i === 3 ? 0.6 : 0.16, 0.9, 'triangle')); }
+  if (kind === 'go') { tone(at, 1568, 0.3, 0.9, 'square', cueBus); }
+  if (kind === 'rest') { tone(at, 880, 0.18, 0.9, 'triangle', cueBus); tone(at + 0.2, 587, 0.4, 0.9, 'triangle', cueBus); }
+  if (kind === 'done') { [523, 659, 784, 1047].forEach((f, i) => tone(at + i * 0.14, f, i === 3 ? 0.6 : 0.16, 0.9, 'triangle', cueBus)); }
 }
 
 /* ========== 画面を消さない ========== */
@@ -515,7 +528,7 @@ function closeRun() {
   render();
 }
 const PH = {
-  prep: ['準備', 'ペダルに足を乗せて。カウントのあとスタート'],
+  prep: ['準備', '構えて。カウントのあとスタート'],
   work: ['ワーク', '崩れたら止めてOK。リセットして再開'],
   rest: ['リセット中', '脱力して呼吸。次のセットをクリーンに'],
   done: ['おつかれさま', '記録しています…'],
@@ -607,7 +620,7 @@ function openLogForm(L, isNew) {
     ${d}
     <div class="label">状態</div>
     <div class="conds">${CONDS.map(c => `<button class="cond ${L.cond === c ? 'on' : ''}" data-act="lf-cond" data-v="${c}">${c}</button>`).join('')}</div>
-    <label>メモ<textarea name="memo" rows="3" placeholder="例：3セット目で右足が崩れた → リセットで戻った">${esc(L.memo)}</textarea></label>
+    <label>メモ<textarea name="memo" rows="3" placeholder="例：3セット目で崩れた → リセットで戻った">${esc(L.memo)}</textarea></label>
     <div class="btnrow"><button class="primary" data-act="logsave">保存</button>
       <button data-act="${isNew && L.works ? 'logdiscard' : 'closesheet'}">${isNew && L.works ? '記録しない' : 'やめる'}</button></div>
     ${isNew ? '' : '<button class="link danger" data-act="logdel">この記録を削除</button>'}
@@ -627,8 +640,17 @@ function renderGuide() {
       <p><b>崩れたまま打ち続けない。</b>崩れる前に止めて、短く休んで（リセット）、きれいな反復だけを積み上げます。崩れた動きを何度も繰り返すと、崩れた動きのほうが体に残るからです。休憩は「サボり」ではなく、練習の一部です。</p>
     </div>
     <div class="card guide">
-      <h2>3つのメニュー</h2>
-      <p>どのトラックも「ゆっくり → ターゲット → チャレンジ」の3つで組みます。役割が違うので、時間の取り方も変えます。</p>
+      <h2>A・B・Cの使い分け</h2>
+      <p>練習の目的ごとに3つのトラックがあります。楽器やフレーズは問いません。目標の文は練習画面で自由に書き換えられます。</p>
+      <ul>
+        <li><b>A：確実</b> ── 決めたテンポで、きれいに続けられるようにする。ルーディメンツの定着、基礎の形づくりなど。</li>
+        <li><b>B：瞬発</b> ── 速いテンポを短い時間で出す。スネアの基礎練やシングル・ダブルのスピードアップなど。</li>
+        <li><b>C：フレーズ</b> ── 曲の中のフレーズを、実際の小節数で目標のテンポまで上げる。</li>
+      </ul>
+    </div>
+    <div class="card guide">
+      <h2>メニューの組み方</h2>
+      <p>基本は「ゆっくり → ターゲット → チャレンジ」の3つで組み、必要に応じて「持続」を足します。役割が違うので、時間の取り方も変えます。メニューは「＋ 追加」でどのトラックにも作れます。</p>
       <h3>ゆっくり ── 形を覚える</h3>
       <ul>
         <li>目標と<b>同じ動き方のまま</b>打てる、一番遅いテンポにします。遅すぎると別の動きの練習になります。</li>
@@ -647,6 +669,12 @@ function renderGuide() {
         <li>休憩は<b>長め（30秒くらい）</b>に。疲れた状態では「一瞬できる」最高の動きが出にくいからです。</li>
         <li>ねらいは、ターゲットを楽にすること。</li>
       </ul>
+      <h3>持続 ── ゆっくりのまま長く続ける</h3>
+      <ul>
+        <li>ゆっくりと同じくらいのテンポで、<b>5分前後など長めに</b>続けます。</li>
+        <li>形を崩さずに続ける持久力と、長く叩いても力まない感覚をつけます。</li>
+        <li>疲れが残ると他のメニューの質が落ちるので、<b>練習の最後</b>か、別の日にやります。</li>
+      </ul>
     </div>
     <div class="card guide">
       <h2>練習の順番</h2>
@@ -654,7 +682,8 @@ function renderGuide() {
         <li>ゆっくり</li>
         <li>ターゲット</li>
         <li>チャレンジ</li>
-        <li>最後にターゲットを1セット。チャレンジの後で<b>楽に感じるか</b>を体で確かめます。</li>
+        <li>ターゲットを1セット。チャレンジの後で<b>楽に感じるか</b>を体で確かめます。</li>
+        <li>持続（やる日だけ）</li>
       </ol>
       <p>記録は終わると自動で保存され、同じメニューを選んだまま練習画面に戻ります。次に何をやるかは自分で選びます。テンポを変えると、その数値がメニューに自動で保存されます。新しい難しい動きは、<b>疲れていない練習の最初</b>にやると効果的です。</p>
     </div>
@@ -669,7 +698,7 @@ function renderGuide() {
     </div>
     <div class="card guide">
       <h2>意識の向け方</h2>
-      <p>体の動き（「足首をこう動かす」）ではなく、<b>動きの結果</b>に意識を向けます。クリックと音がぴったり重なっているか、狙った場所に当たっているか。このほうが上達が早く、本番でも崩れにくいことが繰り返し示されています。</p>
+      <p>体の動き（「手首をこう動かす」）ではなく、<b>動きの結果</b>に意識を向けます。クリックと音がぴったり重なっているか、狙った場所に当たっているか。このほうが上達が早く、本番でも崩れにくいことが繰り返し示されています。</p>
     </div>
     <div class="card guide">
       <h2>難しいフレーズは</h2>
@@ -729,7 +758,7 @@ function renderHistory() {
   const bestOf = k => Math.max(-1, ...bench.map(b => b[k] ?? -1));
   const bA = bestOf('a130'), bB = bestOf('a140'), bC = bestOf('bmax');
   const cell = (v, best, f) => v == null ? '<td class="mu">—</td>' : `<td class="${v === best ? 'best' : ''}">${f(v)}${v === best && bench.length > 1 ? ' ★' : ''}</td>`;
-  const benchHTML = bench.length ? `<table class="bench"><tr><th>日付</th><th>A ♩130<br>連続クリーン</th><th>A ♩140<br>バースト最長</th><th>B 失敗なし<br>上限テンポ</th></tr>
+  const benchHTML = bench.length ? `<table class="bench"><tr><th>日付</th><th>A ターゲット<br>連続クリーン</th><th>A チャレンジ<br>最長</th><th>B 失敗なし<br>上限テンポ</th></tr>
     ${bench.map(b => `<tr data-act="benchedit" data-v="${b.id}"><td>${md(b.date)}</td>${cell(b.a130, bA, fmtL)}${cell(b.a140, bB, fmtL)}${cell(b.bmax, bC, v => '♩' + v)}</tr>`).join('')}</table>`
     : '<div class="empty">月1回、同じ条件で測って記録しましょう</div>';
 
@@ -819,12 +848,12 @@ function openBench(b) {
   const e = benchEditing, a = e.a130;
   showSheet(`<h2>ベンチマーク（月1回）</h2>
     <label>日付<input type="date" name="date" value="${e.date}"></label>
-    <label>A：♩130で連続何分クリーンに打てたか
+    <label>A：ターゲットのテンポで、連続何分クリーンに叩けたか
       <span class="timein"><input type="number" inputmode="numeric" name="a130_m" value="${a == null ? '' : Math.floor(a / 60)}" placeholder="0">分
       <input type="number" inputmode="numeric" name="a130_s" value="${a == null ? '' : a % 60}" placeholder="0">秒</span></label>
-    <label>A：♩140バーストの最長（秒）<input type="number" inputmode="numeric" name="a140" value="${e.a140 ?? ''}" placeholder="例：25"></label>
-    <label>B：失敗なしで打てた上限テンポ（♩）<input type="number" inputmode="numeric" name="bmax" value="${e.bmax ?? ''}" placeholder="例：176"></label>
-    <label>メモ<textarea name="memo" rows="2">${esc(e.memo)}</textarea></label>
+    <label>A：チャレンジのテンポで、きれいに続いた最長（秒）<input type="number" inputmode="numeric" name="a140" value="${e.a140 ?? ''}" placeholder="例：25"></label>
+    <label>B：失敗なしで叩けた上限テンポ（♩）<input type="number" inputmode="numeric" name="bmax" value="${e.bmax ?? ''}" placeholder="例：176"></label>
+    <label>メモ（テンポや内容を書いておくと比べやすくなります）<textarea name="memo" rows="2">${esc(e.memo)}</textarea></label>
     <div class="btnrow"><button class="primary" data-act="benchsave">保存</button><button data-act="closesheet">やめる</button></div>
     ${e.isNew ? '' : '<button class="link danger" data-act="benchdel">この計測を削除</button>'}
     <div class="mu small" style="margin-top:12px">空欄の項目は「測っていない」として保存します。</div>`);
@@ -840,7 +869,7 @@ const csvCell = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ?
 function buildCSV() {
   const rows = [['日付', 'トラック', 'メニュー', 'テンポ', '実施セット', '予定セット', 'ワーク(秒/セット)', '各セットのワーク(秒)', '最長ワーク(秒)', '合計ワーク(秒)', '休憩(秒)', '平均休憩(秒)', '状態', 'メモ']];
   logs.forEach(l => rows.push([l.date, l.track, l.preset, l.bpm, l.sets, l.setsPlanned ?? '', l.work, (l.works || []).join(' '), l.maxWork, l.total, l.rest, l.avgRest ?? '', l.cond, l.memo]));
-  rows.push([]); rows.push(['ベンチマーク日付', 'A♩130連続クリーン(秒)', 'A♩140バースト最長(秒)', 'B上限テンポ', 'メモ']);
+  rows.push([]); rows.push(['ベンチマーク日付', 'Aターゲット連続クリーン(秒)', 'Aチャレンジ最長(秒)', 'B上限テンポ', 'メモ']);
   bench.forEach(b => rows.push([b.date, b.a130 ?? '', b.a140 ?? '', b.bmax ?? '', b.memo]));
   return rows.map(r => r.map(csvCell).join(',')).join('\r\n');
 }
@@ -848,7 +877,7 @@ function buildText() {
   const lines = ['■ 練習記録'];
   logs.forEach(l => lines.push(`${l.date} ${l.track} ${l.preset} ♩${l.bpm} ${l.sets}セット×${fmtL(l.work)} 休憩${l.rest ? fmtL(l.rest) : 'なし'} 最長${fmtL(l.maxWork)} 計${fmtL(l.total)}${l.cond ? ' ' + l.cond : ''}${l.memo ? ' / ' + l.memo.replace(/\n/g, ' ') : ''}`));
   lines.push('', '■ ベンチマーク');
-  bench.forEach(b => lines.push(`${b.date} A♩130:${b.a130 == null ? '—' : fmtL(b.a130)} A♩140:${b.a140 == null ? '—' : fmtL(b.a140)} B上限:${b.bmax == null ? '—' : '♩' + b.bmax}${b.memo ? ' / ' + b.memo : ''}`));
+  bench.forEach(b => lines.push(`${b.date} Aターゲット:${b.a130 == null ? '—' : fmtL(b.a130)} Aチャレンジ:${b.a140 == null ? '—' : fmtL(b.a140)} B上限:${b.bmax == null ? '—' : '♩' + b.bmax}${b.memo ? ' / ' + b.memo : ''}`));
   return lines.join('\n');
 }
 async function shareFile(name, text, type) {
@@ -908,7 +937,7 @@ const ACT = {
     presets = presets.filter(p => p.id !== b.id); savePresets(); initCur(); renderPractice();
   },
   resetpresets() {
-    if (!confirm('プリセットを最初の5つに戻しますか？自分で追加・変更したプリセットは消えます（記録は消えません）。')) return;
+    if (!confirm('プリセットを最初の状態に戻しますか？自分で追加・変更したプリセットは消えます（記録は消えません）。')) return;
     presets = DEFAULT_PRESETS.map(p => ({ ...p })); savePresets(); initCur(); renderPractice();
   },
   start() { startRun(); },
@@ -1045,12 +1074,15 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('input', e => {
   if (e.target.id === 'bpmr') { cur.bpm = int(e.target.value); $('#bpmv').textContent = cur.bpm; keepBpm(); }
+  if (e.target.id === 'goal') { prefs.goals = { ...(prefs.goals || {}), [cur.track]: e.target.value.trim() }; savePrefs(); }
   if (e.target.id === 'pname') { cur.name = e.target.value.trim() || '無題'; }
   if (e.target.id === 'vol') { prefs.vol = parseFloat(e.target.value); if (master) master.gain.value = prefs.vol; }
+  if (e.target.id === 'cuevol') { prefs.cueVol = parseFloat(e.target.value); if (cueBus) cueBus.gain.value = prefs.cueVol; }
 });
 document.addEventListener('change', e => {
   if (e.target.id === 'bpmr' || e.target.id === 'pname') renderPractice();
   if (e.target.id === 'vol') { savePrefs(); ensureAudio(); click(ac.currentTime + 0.05, true); }
+  if (e.target.id === 'cuevol') { savePrefs(); ensureAudio(); cue('rest', ac.currentTime + 0.05); }
 });
 document.addEventListener('visibilitychange', () => {
   if (!R || R.phase === 'done') return;
@@ -1058,7 +1090,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && !R.paused) keepAwake(true);
 });
 
-if (freshInstall) prefs.migV = 8;
+if (freshInstall) prefs.migV = 9;
 // 2026-11 呼び名を役割名にそろえる（数値はそのまま。記録の名前も合わせる）
 if ((prefs.migV || 1) < 2) {
   const RENAME = { A: { '土台': '本番', 'クラスター': '上乗せ' }, B: { 'バースト': '本番' } };
@@ -1104,6 +1136,14 @@ if (prefs.migV < 8) {
     if (p.name === 'チャレンジ') p.rest = 30;
   });
   prefs.migV = 8; save('presets', presets); savePrefs();
+}
+// 2026-11 Aに「持続」（ゆっくりのテンポで長く）を戻す。テンポは今のゆっくりに合わせる
+if (prefs.migV < 9) {
+  if (!presets.some(p => p.track === 'A' && p.name === '持続')) {
+    const slow = presets.find(p => p.track === 'A' && p.name === 'ゆっくり');
+    presets.push({ ...DEFAULT_PRESETS.find(p => p.id === 'a3'), id: presets.some(p => p.id === 'a3') ? uid() : 'a3', bpm: slow ? slow.bpm : 110 });
+  }
+  prefs.migV = 9; save('presets', presets); savePrefs();
 }
 sortLogs(); initCur(); go('practice');
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
